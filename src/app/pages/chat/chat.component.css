@@ -89,6 +89,25 @@
   overflow: auto;
 }
 
+.feedback,
+.empty-state {
+  padding: 24px;
+  color: #334155;
+}
+
+.feedback-error {
+  color: #b91c1c;
+}
+
+.empty-state h1 {
+  margin: 8px 0 10px;
+  color: #0f172a;
+}
+
+.empty-state p:last-child {
+  margin: 0;
+}
+
 .composer {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;

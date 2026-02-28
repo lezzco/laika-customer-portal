@@ -1,25 +1,11 @@
 import { CommonModule } from '@angular/common';
+import { HttpErrorResponse } from '@angular/common/http';
+import { Component, DestroyRef, computed, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
-import { Component, computed, signal } from '@angular/core';
-
-type Sender = 'agent' | 'customer';
-
-type ChatMessage = {
-  id: number;
-  sender: Sender;
-  text: string;
-  time: string;
-  read: boolean;
-};
-
-type ChatThread = {
-  id: number;
-  customer: string;
-  channel: 'WhatsApp' | 'Instagram' | 'Web Chat' | 'Messenger';
-  status: 'Online' | 'In attesa' | 'Nuovo';
-  lastMessageAt: string;
-  messages: ChatMessage[];
-};
+import { ChatApiService } from '../../core/chat/chat-api.service';
+import { ChatMessage, ChatSocketEvent, ChatThread } from '../../core/chat/chat.models';
+import { ChatSocketService } from '../../core/chat/chat-socket.service';
 
 @Component({
   selector: 'app-chat',
@@ -29,62 +15,19 @@ type ChatThread = {
   styleUrl: './chat.component.css'
 })
 export class ChatComponent {
-  readonly threads = signal<ChatThread[]>([
-    {
-      id: 101,
-      customer: 'Vincenzo Pafundi',
-      channel: 'WhatsApp',
-      status: 'Online',
-      lastMessageAt: '10:42',
-      messages: [
-        { id: 1, sender: 'customer', text: 'Ciao, vorrei sapere dove si trova il mio ordine.', time: '10:31', read: true },
-        { id: 2, sender: 'agent', text: 'Controllo subito. Mi confermi il numero ordine?', time: '10:33', read: true },
-        { id: 3, sender: 'customer', text: 'ORD-24519', time: '10:34', read: true },
-        { id: 4, sender: 'agent', text: 'Perfetto, risulta in consegna per oggi.', time: '10:36', read: true },
-        { id: 5, sender: 'customer', text: 'Ottimo, grazie.', time: '10:42', read: false },
-      ],
-    },
-    {
-      id: 102,
-      customer: 'Marco Bianchi',
-      channel: 'Web Chat',
-      status: 'Nuovo',
-      lastMessageAt: '10:18',
-      messages: [
-        { id: 1, sender: 'customer', text: 'Non riesco ad accedere al mio account.', time: '10:16', read: false },
-        { id: 2, sender: 'customer', text: 'Potete aiutarmi?', time: '10:18', read: false },
-      ],
-    },
-    {
-      id: 103,
-      customer: 'Sara Verdi',
-      channel: 'Instagram',
-      status: 'In attesa',
-      lastMessageAt: '09:54',
-      messages: [
-        { id: 1, sender: 'customer', text: 'Vorrei fare un reso.', time: '09:40', read: true },
-        { id: 2, sender: 'agent', text: 'Certo, ti invio la procedura.', time: '09:43', read: true },
-        { id: 3, sender: 'customer', text: 'Grazie, resto in attesa.', time: '09:54', read: false },
-      ],
-    },
-    {
-      id: 104,
-      customer: 'Luca Neri',
-      channel: 'Messenger',
-      status: 'Online',
-      lastMessageAt: 'Ieri',
-      messages: [
-        { id: 1, sender: 'customer', text: 'Avete disponibilita della taglia M?', time: '18:21', read: true },
-        { id: 2, sender: 'agent', text: 'Si, e disponibile in magazzino.', time: '18:26', read: true },
-      ],
-    },
-  ]);
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly chatApi = inject(ChatApiService);
+  private readonly chatSocket = inject(ChatSocketService);
 
-  readonly selectedThreadId = signal(101);
+  readonly threads = signal<ChatThread[]>([]);
+  readonly selectedThreadId = signal<number | null>(null);
+  readonly loading = signal(true);
+  readonly error = signal<string | null>(null);
+
   draftMessage = '';
 
   readonly selectedThread = computed(
-    () => this.threads().find(thread => thread.id === this.selectedThreadId()) ?? this.threads()[0]
+    () => this.threads().find(thread => thread.id === this.selectedThreadId()) ?? this.threads()[0] ?? null
   );
 
   readonly totalUnread = computed(() =>
@@ -92,7 +35,9 @@ export class ChatComponent {
   );
 
   constructor() {
-    this.markThreadAsRead(this.selectedThreadId());
+    this.destroyRef.onDestroy(() => this.chatSocket.disconnect());
+    this.loadThreads();
+    this.subscribeToSocket();
   }
 
   selectThread(threadId: number) {
@@ -110,31 +55,21 @@ export class ChatComponent {
 
   sendMessage() {
     const text = this.draftMessage.trim();
-    if (!text) return;
+    const selectedThread = this.selectedThread();
+    if (!text || !selectedThread) return;
 
-    const selectedId = this.selectedThreadId();
-
-    this.threads.update(threads =>
-      threads.map(thread => {
-        if (thread.id !== selectedId) return thread;
-
-        const nextMessage: ChatMessage = {
-          id: thread.messages.length + 1,
-          sender: 'agent',
-          text,
-          time: this.formatNow(),
-          read: true,
-        };
-
-        return {
-          ...thread,
-          lastMessageAt: nextMessage.time,
-          messages: [...thread.messages, nextMessage],
-        };
-      })
-    );
-
-    this.draftMessage = '';
+    this.chatApi
+      .sendMessage(selectedThread.id, text)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: message => {
+          this.upsertThreadMessage(selectedThread.id, { ...message, read: true, sender: 'agent' });
+          this.draftMessage = '';
+        },
+        error: err => {
+          this.error.set(this.getErrorMessage(err, 'Invio messaggio fallito'));
+        },
+      });
   }
 
   onComposerKeydown(event: KeyboardEvent) {
@@ -144,7 +79,103 @@ export class ChatComponent {
     this.sendMessage();
   }
 
+  private loadThreads() {
+    this.chatApi
+      .getThreads()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: threads => {
+          this.threads.set(threads);
+          this.loading.set(false);
+          this.error.set(null);
+
+          if (!threads.length) return;
+
+          const selectedId = this.selectedThreadId() ?? threads[0].id;
+          this.selectedThreadId.set(selectedId);
+          this.markThreadAsRead(selectedId);
+        },
+        error: err => {
+          this.loading.set(false);
+          this.error.set(this.getErrorMessage(err, 'Caricamento chat fallito'));
+        },
+      });
+  }
+
+  private subscribeToSocket() {
+    this.chatSocket.connect();
+    this.chatSocket.events$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(event => {
+        this.applySocketEvent(event);
+      });
+  }
+
+  private applySocketEvent(event: ChatSocketEvent) {
+    switch (event.type) {
+      case 'thread.snapshot':
+        this.threads.set(event.payload);
+        if (!this.selectedThreadId() && event.payload.length) {
+          this.selectedThreadId.set(event.payload[0].id);
+        }
+        break;
+      case 'thread.message':
+        this.upsertThreadMessage(event.payload.threadId, event.payload.message);
+        if (event.payload.threadId === this.selectedThreadId()) {
+          this.markThreadAsRead(event.payload.threadId);
+        }
+        break;
+      case 'thread.read':
+        this.markMessagesAsReadLocally(event.payload.threadId);
+        break;
+      case 'thread.updated':
+        this.upsertThread(event.payload);
+        break;
+    }
+  }
+
+  private upsertThread(thread: ChatThread) {
+    this.threads.update(threads => {
+      const exists = threads.some(item => item.id === thread.id);
+      if (!exists) return [thread, ...threads];
+
+      return threads.map(item => (item.id === thread.id ? thread : item));
+    });
+  }
+
+  private upsertThreadMessage(threadId: number, message: ChatMessage) {
+    this.threads.update(threads =>
+      threads.map(thread => {
+        if (thread.id !== threadId) return thread;
+
+        const alreadyExists = thread.messages.some(item => item.id === message.id);
+        const messages = alreadyExists
+          ? thread.messages.map(item => (item.id === message.id ? message : item))
+          : [...thread.messages, message];
+
+        return {
+          ...thread,
+          lastMessageAt: message.time,
+          messages,
+        };
+      })
+    );
+  }
+
   private markThreadAsRead(threadId: number) {
+    this.markMessagesAsReadLocally(threadId);
+
+    this.chatApi
+      .markAsRead(threadId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        error: err => {
+          this.error.set(this.getErrorMessage(err, 'Aggiornamento stato lettura fallito'));
+        },
+      });
+  }
+
+  private markMessagesAsReadLocally(threadId: number) {
     this.threads.update(threads =>
       threads.map(thread => {
         if (thread.id !== threadId) return thread;
@@ -159,10 +190,11 @@ export class ChatComponent {
     );
   }
 
-  private formatNow() {
-    return new Intl.DateTimeFormat('it-IT', {
-      hour: '2-digit',
-      minute: '2-digit',
-    }).format(new Date());
+  private getErrorMessage(error: unknown, fallback: string) {
+    if (error instanceof HttpErrorResponse) {
+      return error.error?.message ?? fallback;
+    }
+
+    return fallback;
   }
 }

@@ -1,37 +1,39 @@
 <section class="chat-page">
   <div class="chat-shell">
     <main class="conversation-panel">
-      <header class="conversation-header">
-        <div>
-          <p class="eyebrow">{{ selectedThread().channel }}</p>
-          <h1>{{ selectedThread().customer }}</h1>
-          <p class="status">{{ selectedThread().status }}</p>
-        </div>
-        <div class="unread-summary" *ngIf="unreadCount(selectedThread()) > 0">
-          {{ unreadCount(selectedThread()) }} non letti
-        </div>
-      </header>
+      <ng-container *ngIf="selectedThread() as thread; else emptyState">
+        <header class="conversation-header">
+          <div>
+            <p class="eyebrow">{{ thread.channel }}</p>
+            <h1>{{ thread.customer }}</h1>
+            <p class="status">{{ thread.status }}</p>
+          </div>
+          <div class="unread-summary" *ngIf="unreadCount(thread) > 0">
+            {{ unreadCount(thread) }} non letti
+          </div>
+        </header>
 
-      <div class="messages">
-        <article
-          class="message"
-          *ngFor="let message of selectedThread().messages"
-          [class.message-customer]="message.sender === 'customer'"
-          [class.message-agent]="message.sender === 'agent'">
-          <p>{{ message.text }}</p>
-          <span>{{ message.time }}</span>
-        </article>
-      </div>
+        <div class="messages">
+          <article
+            class="message"
+            *ngFor="let message of thread.messages"
+            [class.message-customer]="message.sender === 'customer'"
+            [class.message-agent]="message.sender === 'agent'">
+            <p>{{ message.text }}</p>
+            <span>{{ message.time }}</span>
+          </article>
+        </div>
 
-      <form class="composer" (ngSubmit)="sendMessage()">
-        <textarea
-          name="message"
-          [(ngModel)]="draftMessage"
-          rows="2"
-          placeholder="Scrivi un messaggio..."
-          (keydown)="onComposerKeydown($event)"></textarea>
-        <button type="submit" class="send-button" [disabled]="!draftMessage.trim()">Invia</button>
-      </form>
+        <form class="composer" (ngSubmit)="sendMessage()">
+          <textarea
+            name="message"
+            [(ngModel)]="draftMessage"
+            rows="2"
+            placeholder="Scrivi un messaggio..."
+            (keydown)="onComposerKeydown($event)"></textarea>
+          <button type="submit" class="send-button" [disabled]="!draftMessage.trim()">Invia</button>
+        </form>
+      </ng-container>
     </main>
 
     <aside class="threads-panel">
@@ -42,6 +44,9 @@
         </div>
         <div class="total-badge" *ngIf="totalUnread() > 0">{{ totalUnread() }}</div>
       </header>
+
+      <div class="feedback" *ngIf="loading()">Caricamento chat...</div>
+      <div class="feedback feedback-error" *ngIf="error()">{{ error() }}</div>
 
       <button
         type="button"
@@ -62,3 +67,11 @@
     </aside>
   </div>
 </section>
+
+<ng-template #emptyState>
+  <div class="empty-state">
+    <p class="eyebrow">Inbox</p>
+    <h1>Nessuna conversazione selezionata</h1>
+    <p>Quando il WebSocket o le API restituiranno dei thread, li vedrai qui.</p>
+  </div>
+</ng-template>
