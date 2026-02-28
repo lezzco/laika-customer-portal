@@ -1,0 +1,20 @@
+<div class="wrap">
+  <div class="card">
+    <h1>Login</h1>
+    <p class="sub">Accedi per vedere il cockpit</p>
+
+    <form (ngSubmit)="submit()">
+      <label>Email</label>
+      <input [(ngModel)]="email" name="email" type="email" autocomplete="username" required />
+
+      <label>Password</label>
+      <input [(ngModel)]="password" name="password" type="password" autocomplete="current-password" required />
+
+      <button [disabled]="loading">
+        {{ loading ? 'Accesso...' : 'Accedi' }}
+      </button>
+
+      <p class="error" *ngIf="error">{{ error }}</p>
+    </form>
+  </div>
+</div>

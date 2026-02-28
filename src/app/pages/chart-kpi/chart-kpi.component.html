@@ -1,0 +1,52 @@
+<div class="page">
+  <h1>Chatbot Cockpit (Mock)</h1>
+
+  <section class="kpis">
+    <div class="card kpi">
+      <div class="kpi-label">Conversazioni</div>
+      <div class="kpi-value">{{ totalConv() }}</div>
+    </div>
+
+    <div class="card kpi">
+      <div class="kpi-label">Risolte da AI</div>
+      <div class="kpi-value">{{ totalResolved() }}</div>
+      <div class="kpi-foot">Rate {{ pct(resolvedRate()) }}</div>
+    </div>
+
+    <div class="card kpi">
+      <div class="kpi-label">Piano</div>
+      <div class="kpi-value">{{ billing().plan }}</div>
+      <div class="kpi-foot">Costo stimato €{{ billing().estimatedCost }}</div>
+    </div>
+  </section>
+
+  <section class="grid">
+    <div class="card chart">
+      <div class="card-title">Conversazioni nel tempo</div>
+      <div class="chart-box">
+        <canvas baseChart [type]="'line'" [data]="convTsData()" [options]="lineOptions"></canvas>
+      </div>
+    </div>
+
+    <div class="card chart">
+      <div class="card-title">Quota per canale</div>
+      <div class="chart-box">
+        <canvas baseChart [type]="'doughnut'" [data]="channelsShareData()" [options]="doughnutOptions"></canvas>
+      </div>
+    </div>
+
+    <div class="card chart">
+      <div class="card-title">Esiti per canale</div>
+      <div class="chart-box">
+        <canvas baseChart [type]="'bar'" [data]="channelsStackedData()" [options]="stackedOptions"></canvas>
+      </div>
+    </div>
+
+    <div class="card chart">
+      <div class="card-title">Costo nel tempo</div>
+      <div class="chart-box">
+        <canvas baseChart [type]="'line'" [data]="billingCostData()" [options]="lineOptions"></canvas>
+      </div>
+    </div>
+  </section>
+</div>

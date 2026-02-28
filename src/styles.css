@@ -1,0 +1,6 @@
+/* You can add global styles to this file, and also import other style files */
+.page {
+  background: radial-gradient(circle at 50% 0%, rgba(0,0,0,0.03) 0%, transparent 70%);
+  min-height: 100vh;
+  padding: 24px;
+}

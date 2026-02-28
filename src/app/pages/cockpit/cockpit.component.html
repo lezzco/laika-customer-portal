@@ -1,0 +1,138 @@
+<!-- <div class="page">
+  <header class="header">
+    <div>
+      <h1>Chatbot Cockpit</h1>
+      <p class="sub">Panoramica 7 giorni (dati demo)</p>
+    </div>
+    <div class="pill">Aggiornato: adesso</div>
+  </header>
+
+  <section class="kpis">
+    <div class="card kpi">
+      <div class="kpi-label">Conversazioni</div>
+      <div class="kpi-value">{{ num(kpiConversations()) }}</div>
+    </div>
+
+    <div class="card kpi">
+      <div class="kpi-label">Messaggi</div>
+      <div class="kpi-value">{{ num(kpiMessages()) }}</div>
+      <div class="kpi-foot">Avg msg/conv: {{ kpiAvgMsgsPerConv().toFixed(1) }}</div>
+    </div>
+
+    <div class="card kpi">
+      <div class="kpi-label">Resolved rate</div>
+      <div class="kpi-value">{{ pct(kpiResolvedRate()) }}</div>
+    </div>
+
+    <div class="card kpi">
+      <div class="kpi-label">Handoff rate</div>
+      <div class="kpi-value">{{ pct(kpiHandoffRate()) }}</div>
+    </div>
+
+    <div class="card kpi">
+      <div class="kpi-label">Latency p95</div>
+      <div class="kpi-value">{{ ms(kpiP95Latency()) }}</div>
+    </div>
+  </section>
+
+  <section class="grid">
+    <div class="card chart">
+      <div class="card-title">Volume</div>
+      <div class="chart-box">
+        <canvas
+          baseChart
+          [type]="'line'"
+          [data]="conversationsLineData()"
+          [options]="lineOptions">
+        </canvas>
+      </div>
+      <div class="hint">Conversazioni e messaggi per giorno</div>
+    </div>
+
+    <div class="card chart">
+      <div class="card-title">Esiti</div>
+      <div class="chart-box">
+        <canvas
+          baseChart
+          [type]="'doughnut'"
+          [data]="outcomesDoughnutData()"
+          [options]="doughnutOptions">
+        </canvas>
+      </div>
+      <div class="hint">Risolte / Handoff / Fallite</div>
+    </div>
+
+    <div class="card chart">
+      <div class="card-title">Top intent</div>
+      <div class="chart-box">
+        <canvas
+          baseChart
+          [type]="'bar'"
+          [data]="intentsBarData()"
+          [options]="barOptions">
+        </canvas>
+      </div>
+      <div class="hint">Le richieste più frequenti</div>
+    </div>
+
+    <div class="card chart">
+      <div class="card-title">Performance</div>
+      <div class="chart-box">
+        <canvas
+          baseChart
+          [type]="'line'"
+          [data]="p95LineData()"
+          [options]="lineOptions">
+        </canvas>
+      </div>
+      <div class="hint">Latency p95 giornaliera</div>
+    </div>
+  </section>
+</div> -->
+<div class="page">
+  <header class="header">
+    <h1>Chatbot Cockpit</h1>
+    <span class="pill">Live</span>
+  </header>
+
+  <!-- KPI -->
+  <section class="kpis">
+    <div class="card kpi">
+      <div class="kpi-label">Conversazioni</div>
+      <div class="kpi-value">{{ num(totalConversations()) }}</div>
+    </div>
+
+    <div class="card kpi">
+      <div class="kpi-label">Risolte da AI</div>
+      <div class="kpi-value green">{{ num(aiResolved()) }}</div>
+      <div class="kpi-foot">Handoff: {{ num(handoff()) }}</div>
+    </div>
+
+    <div class="card kpi">
+      <div class="kpi-label">Tempo risposta AI</div>
+      <div class="kpi-value">{{ avgResponseMs() }} ms</div>
+      <div class="kpi-foot">Durata conv: {{ avgConversationSec() }} s</div>
+    </div>
+
+    <div class="card kpi">
+      <div class="kpi-label">Utenti unici</div>
+      <div class="kpi-value">{{ num(uniqueUsers()) }}</div>
+      <div class="kpi-foot">Tot. interazioni</div>
+    </div>
+  </section>
+
+  <!-- Top intent -->
+  <section class="grid">
+    <div class="card chart">
+      <div class="card-title">Top intent</div>
+      <div class="chart-box">
+        <canvas
+          baseChart
+          [type]="'bar'"
+          [data]="topIntentData()"
+          [options]="barOptions">
+        </canvas>
+      </div>
+    </div>
+  </section>
+</div>
