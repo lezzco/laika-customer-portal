@@ -1,4 +1,5 @@
 import { Component, computed, signal, inject, PLATFORM_ID } from '@angular/core';
+import { Router, RouterLink } from '@angular/router';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { ChartData, ChartOptions } from 'chart.js';
 import { BaseChartDirective } from 'ng2-charts';
@@ -11,12 +12,13 @@ type Outcomes = { resolved: number; handoff: number; failed: number };
 @Component({
   selector: 'app-chatbot-cockpit',
   standalone: true,
-  imports: [CommonModule, BaseChartDirective],
+  imports: [CommonModule, BaseChartDirective,RouterLink],
   templateUrl: './cockpit.component.html',
   styleUrls: ['./cockpit.component.css'],
 })
 export class CockpitComponent {
-
+  constructor(private router: Router) {}
+  
   private readonly platformId = inject(PLATFORM_ID);
    private conversations = signal(1280);
   private aiResolvedConv = signal(920);

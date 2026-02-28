@@ -1,5 +1,6 @@
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { Component, computed, inject, PLATFORM_ID, signal } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { ChartData, ChartOptions } from 'chart.js';
 import { BaseChartDirective } from 'ng2-charts';
 
@@ -22,7 +23,8 @@ type Billing = {
 
 @Component({
   selector: 'app-chart-kpi',
-  imports: [CommonModule, BaseChartDirective],
+  standalone: true,
+  imports: [CommonModule, BaseChartDirective,RouterLink],
   templateUrl: './chart-kpi.component.html',
   styleUrl: './chart-kpi.component.css'
 })

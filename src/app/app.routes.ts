@@ -16,5 +16,10 @@ export const routes: Routes = [
     // canActivate: [authGuard],
     loadComponent: () => import('./pages/chart-kpi/chart-kpi.component').then(m => m.ChartKpiComponent),
   },
+  {
+    path:'chat',
+    // canActivate: [authGuard],
+    loadComponent: () => import('./pages/chat/chat.component').then(m => m.ChatComponent),
+  },
   { path: '**', redirectTo: '' },
 ];
