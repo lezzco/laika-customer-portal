@@ -17,10 +17,15 @@ export class ChatSocketService {
     if (this.socket && this.socket.readyState <= WebSocket.OPEN) return;
 
     const token = this.auth.token();
-    const url = this.buildSocketUrl(token);
+    // const url = this.buildSocketUrl(token);
+    const url = "wss://damgw5yde7.execute-api.eu-central-1.amazonaws.com/dev/";
 
     this.socket = new WebSocket(url);
+    
 
+    this.socket.onopen = () => {
+    console.log("✅ WebSocket connesso");
+  };
     this.socket.onmessage = event => {
       this.zone.run(() => {
         const parsed = this.parseEvent(event.data);
@@ -29,6 +34,7 @@ export class ChatSocketService {
     };
 
     this.socket.onclose = () => {
+       console.log("❌ WebSocket disconnesso ");
       this.socket = null;
     };
 
