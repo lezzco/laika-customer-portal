@@ -7,7 +7,7 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/login/login.component').then(m => m.LoginComponent),
   },
   {
-    path: '',
+    path: 'cockpit',
     // canActivate: [authGuard],
     loadComponent: () => import('./pages/cockpit/cockpit.component').then(m => m.CockpitComponent),
   },
@@ -17,9 +17,9 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/chart-kpi/chart-kpi.component').then(m => m.ChartKpiComponent),
   },
   {
-    path:'chat',
+    path:'',
     // canActivate: [authGuard],
     loadComponent: () => import('./pages/chat/chat.component').then(m => m.ChatComponent),
   },
-  { path: '**', redirectTo: 'chat' },
+  { path: '**', redirectTo: '' },
 ];
