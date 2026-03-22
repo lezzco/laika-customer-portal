@@ -21,5 +21,5 @@ export const routes: Routes = [
     // canActivate: [authGuard],
     loadComponent: () => import('./pages/chat/chat.component').then(m => m.ChatComponent),
   },
-  { path: '**', redirectTo: '' },
+  { path: '**', redirectTo: 'chat' },
 ];
