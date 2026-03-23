@@ -1,6 +1,6 @@
 .chat-page {
-  min-height: 100vh;
-  padding: 32px;
+  min-height: 100dvh;
+  padding: 16px;
   background:
     radial-gradient(circle at top left, rgba(37, 99, 235, 0.14), transparent 28%),
     linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%);
@@ -85,22 +85,24 @@
   flex: 1;
   flex-direction: column;
   gap: 14px;
-  padding: 24px;
+  padding: 20px;
   overflow: auto;
+  scroll-behavior: smooth;
 }
 
 .composer {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 14px;
-  padding: 20px 24px 24px;
+  gap: 12px;
+  padding: 16px 20px 20px;
   border-top: 1px solid rgba(148, 163, 184, 0.18);
-  background: rgba(248, 250, 252, 0.8);
+  background: rgba(248, 250, 252, 0.92);
 }
 
 .composer textarea {
   width: 100%;
-  min-height: 64px;
+  min-height: 56px;
+  max-height: 180px;
   resize: vertical;
   padding: 14px 16px;
   border: 1px solid rgba(148, 163, 184, 0.35);
@@ -119,6 +121,7 @@
 
 .send-button {
   align-self: end;
+  min-width: 110px;
   height: 52px;
   padding: 0 22px;
   border: 0;
@@ -128,11 +131,18 @@
   font: inherit;
   font-weight: 700;
   cursor: pointer;
+  transition: transform 120ms ease, box-shadow 120ms ease;
+}
+
+.send-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 24px rgba(37, 99, 235, 0.22);
 }
 
 .send-button:disabled {
   background: #94a3b8;
   cursor: not-allowed;
+  box-shadow: none;
 }
 
 .message {
@@ -146,6 +156,7 @@
   margin: 0 0 8px;
   line-height: 1.5;
   color: #0f172a;
+  word-break: break-word;
 }
 
 .message span {
@@ -250,31 +261,45 @@
   color: #334155;
 }
 
+/* Tablet */
 @media (max-width: 960px) {
   .chat-page {
-    padding: 20px;
+    padding: 14px;
   }
 
   .chat-shell {
     grid-template-columns: 1fr;
+    gap: 16px;
   }
 
   .conversation-panel,
   .threads-panel {
     min-height: auto;
+    border-radius: 20px;
   }
 
   .threads-panel {
     order: -1;
   }
 
+  .conversation-header,
+  .threads-header {
+    padding: 18px;
+  }
+
+  .conversation-header h1,
+  .threads-header h2 {
+    font-size: 1.35rem;
+  }
+
   .thread-card {
     width: calc(100% - 20px);
     margin: 10px;
+    padding: 16px;
   }
 
   .message {
-    max-width: 88%;
+    max-width: 84%;
   }
 
   .composer {
@@ -283,5 +308,133 @@
 
   .send-button {
     width: 100%;
+  }
+}
+
+/* Mobile */
+@media (max-width: 640px) {
+  .chat-page {
+    padding: 10px;
+  }
+
+  .chat-shell {
+    gap: 12px;
+  }
+
+  .conversation-panel,
+  .threads-panel {
+    border-radius: 18px;
+  }
+
+  .conversation-header,
+  .threads-header {
+    padding: 14px;
+    gap: 12px;
+  }
+
+  .conversation-header h1,
+  .threads-header h2 {
+    font-size: 1.05rem;
+    line-height: 1.2;
+  }
+
+  .eyebrow {
+    font-size: 0.7rem;
+    letter-spacing: 0.08em;
+  }
+
+  .status {
+    font-size: 0.88rem;
+  }
+
+  .unread-summary,
+  .total-badge,
+  .thread-unread {
+    min-width: 24px;
+    height: 24px;
+    padding: 0 8px;
+    font-size: 0.74rem;
+  }
+
+  .messages {
+    padding: 14px;
+    gap: 10px;
+  }
+
+  .message {
+    max-width: 92%;
+    padding: 12px 14px;
+    border-radius: 18px;
+  }
+
+  .message p {
+    font-size: 0.95rem;
+    line-height: 1.45;
+  }
+
+  .message span {
+    font-size: 0.72rem;
+  }
+
+  .composer {
+    padding: 12px 14px 14px;
+    gap: 10px;
+  }
+
+  .composer textarea {
+    min-height: 52px;
+    padding: 12px 14px;
+    border-radius: 16px;
+    font-size: 0.95rem;
+  }
+
+  .send-button {
+    height: 48px;
+    border-radius: 14px;
+  }
+
+  .thread-card {
+    width: calc(100% - 16px);
+    margin: 8px;
+    padding: 14px;
+    border-radius: 16px;
+    align-items: flex-start;
+  }
+
+  .thread-top {
+    gap: 8px;
+    margin-bottom: 4px;
+  }
+
+  .thread-top strong {
+    font-size: 0.95rem;
+  }
+
+  .thread-top span,
+  .thread-meta,
+  .thread-preview {
+    font-size: 0.8rem;
+  }
+}
+
+/* Very small screens */
+@media (max-width: 420px) {
+  .conversation-header,
+  .threads-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .thread-card {
+    gap: 10px;
+  }
+
+  .thread-top {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .message {
+    max-width: 96%;
   }
 }
