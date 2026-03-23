@@ -1,12 +1,57 @@
 <section class="chat-page">
-  <div class="chat-shell">
-    <main class="conversation-panel">
-      <header class="conversation-header">
+  <div class="chat-shell" [class.chat-shell-mobile]="isMobile()">
+    
+    <!-- Lista thread -->
+    <aside
+      class="threads-panel"
+      *ngIf="!isMobile() || !mobileChatOpen">
+      <header class="threads-header">
         <div>
-          <p class="eyebrow">{{ selectedThread().channel }}</p>
-          <h1>{{ selectedThread().customer }}</h1>
-          <p class="status">{{ selectedThread().status }}</p>
+          <p class="eyebrow">Inbox</p>
+          <h2>Conversazioni</h2>
         </div>
+        <div class="total-badge" *ngIf="totalUnread() > 0">{{ totalUnread() }}</div>
+      </header>
+
+      <button
+        type="button"
+        class="thread-card"
+        *ngFor="let thread of threads()"
+        [class.thread-card-active]="thread.id === selectedThread().id"
+        (click)="openThread(thread.id)">
+        <div class="thread-main">
+          <div class="thread-top">
+            <strong>{{ thread.customer }}</strong>
+            <span>{{ thread.lastMessageAt }}</span>
+          </div>
+          <p class="thread-meta">{{ thread.channel }} - {{ thread.status }}</p>
+          <p class="thread-preview">{{ lastMessage(thread) }}</p>
+        </div>
+        <div class="thread-unread" *ngIf="unreadCount(thread) > 0">{{ unreadCount(thread) }}</div>
+      </button>
+    </aside>
+
+    <!-- Conversazione -->
+    <main
+      class="conversation-panel"
+      *ngIf="!isMobile() || mobileChatOpen">
+      <header class="conversation-header">
+        <div class="conversation-title-wrap">
+          <button
+            type="button"
+            class="back-button"
+            *ngIf="isMobile()"
+            (click)="closeMobileChat()">
+            ←
+          </button>
+
+          <div>
+            <p class="eyebrow">{{ selectedThread().channel }}</p>
+            <h1>{{ selectedThread().customer }}</h1>
+            <p class="status">{{ selectedThread().status }}</p>
+          </div>
+        </div>
+
         <div class="unread-summary" *ngIf="unreadCount(selectedThread()) > 0">
           {{ unreadCount(selectedThread()) }} non letti
         </div>
@@ -34,31 +79,5 @@
       </form>
     </main>
 
-    <aside class="threads-panel">
-      <header class="threads-header">
-        <div>
-          <p class="eyebrow">Inbox</p>
-          <h2>Conversazioni</h2>
-        </div>
-        <div class="total-badge" *ngIf="totalUnread() > 0">{{ totalUnread() }}</div>
-      </header>
-
-      <button
-        type="button"
-        class="thread-card"
-        *ngFor="let thread of threads()"
-        [class.thread-card-active]="thread.id === selectedThread().id"
-        (click)="selectThread(thread.id)">
-        <div class="thread-main">
-          <div class="thread-top">
-            <strong>{{ thread.customer }}</strong>
-            <span>{{ thread.lastMessageAt }}</span>
-          </div>
-          <p class="thread-meta">{{ thread.channel }} - {{ thread.status }}</p>
-          <p class="thread-preview">{{ lastMessage(thread) }}</p>
-        </div>
-        <div class="thread-unread" *ngIf="unreadCount(thread) > 0">{{ unreadCount(thread) }}</div>
-      </button>
-    </aside>
   </div>
 </section>
