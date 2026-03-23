@@ -35,7 +35,7 @@ isMobile(): boolean {
   return window.innerWidth <= 960;
 }
 
-openThread(threadId: number | string): void {
+openThread(threadId: number): void {
   this.selectThread(threadId);
 
   if (this.isMobile()) {
