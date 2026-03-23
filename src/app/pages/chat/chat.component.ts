@@ -29,6 +29,23 @@ type ChatThread = {
   styleUrl: './chat.component.css'
 })
 export class ChatComponent {
+  mobileChatOpen = false;
+
+isMobile(): boolean {
+  return window.innerWidth <= 960;
+}
+
+openThread(threadId: number | string): void {
+  this.selectThread(threadId);
+
+  if (this.isMobile()) {
+    this.mobileChatOpen = true;
+  }
+}
+
+closeMobileChat(): void {
+  this.mobileChatOpen = false;
+}
   readonly threads = signal<ChatThread[]>([
     {
       id: 101,
