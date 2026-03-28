@@ -22,3 +22,11 @@ export type ChatSocketEvent =
   | { type: 'thread.message'; payload: { threadId: number; message: ChatMessage } }
   | { type: 'thread.read'; payload: { threadId: number } }
   | { type: 'thread.updated'; payload: ChatThread };
+
+
+
+  export type NotifyFromWebSocket  = {
+    converstionId: number;
+    messageid: string;
+    companyId: number;
+  };

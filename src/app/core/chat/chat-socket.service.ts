@@ -18,7 +18,7 @@ export class ChatSocketService {
 
     const token = this.auth.token();
     // const url = this.buildSocketUrl(token);
-    const url = "wss://damgw5yde7.execute-api.eu-central-1.amazonaws.com/dev/";
+    const url = "wss://p6fqdjp9vk.execute-api.eu-central-1.amazonaws.com/dev/";
 
     this.socket = new WebSocket(url);
     
@@ -63,6 +63,7 @@ export class ChatSocketService {
     if (typeof raw !== 'string') return null;
 
     try {
+      console.log("📩 Messaggio ricevuto:", raw);
       return JSON.parse(raw) as ChatSocketEvent;
     } catch {
       return null;
