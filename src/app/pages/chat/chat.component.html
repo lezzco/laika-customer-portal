@@ -1,82 +1,123 @@
 <section class="chat-page">
-  <div class="chat-shell" [class.chat-shell-mobile]="isMobile()">
-    
-    <!-- Lista thread -->
-    <aside
-      class="threads-panel"
-      *ngIf="!isMobile() || !mobileChatOpen">
+  <div class="chat-shell">
+
+    <!-- ── SIDEBAR / LISTA THREAD ── -->
+    <aside class="threads-panel" [class.hidden]="isMobile() && mobileChatOpen">
+
       <header class="threads-header">
-        <div>
-          <p class="eyebrow">Inbox</p>
+        <div class="threads-header-left">
+          <div class="header-avatar">A</div>
           <h2>Conversazioni</h2>
         </div>
         <div class="total-badge" *ngIf="totalUnread() > 0">{{ totalUnread() }}</div>
       </header>
 
-      <button
-        type="button"
-        class="thread-card"
-        *ngFor="let thread of threads()"
-        [class.thread-card-active]="thread.id === selectedThread().id"
-        (click)="openThread(thread.id)">
-        <div class="thread-main">
-          <div class="thread-top">
-            <strong>{{ thread.customer }}</strong>
-            <span>{{ thread.lastMessageAt }}</span>
-          </div>
-          <p class="thread-meta">{{ thread.channel }} - {{ thread.status }}</p>
-          <p class="thread-preview">{{ lastMessage(thread) }}</p>
+      <div class="search-bar">
+        <div class="search-wrap">
+          <span class="search-icon">🔍</span>
+          <input type="text" placeholder="Cerca o inizia una nuova chat" readonly />
         </div>
-        <div class="thread-unread" *ngIf="unreadCount(thread) > 0">{{ unreadCount(thread) }}</div>
-      </button>
+      </div>
+
+      <div class="threads-list">
+        <button
+          type="button"
+          class="thread-card"
+          *ngFor="let thread of threads()"
+          [class.thread-card-active]="thread.id === selectedThread().id"
+          (click)="openThread(thread.id)">
+
+          <div class="thread-avatar">{{ thread.customer.charAt(0) }}</div>
+
+          <div class="thread-main">
+            <div class="thread-top">
+              <strong>{{ thread.customer }}</strong>
+              <span class="thread-time" [class.thread-time-unread]="unreadCount(thread) > 0">
+                {{ thread.lastMessageAt }}
+              </span>
+            </div>
+            <div class="thread-bottom">
+              <p class="thread-preview" [class.thread-preview-unread]="unreadCount(thread) > 0">
+                {{ lastMessage(thread) }}
+              </p>
+              <div class="thread-unread" *ngIf="unreadCount(thread) > 0">
+                {{ unreadCount(thread) }}
+              </div>
+            </div>
+          </div>
+
+        </button>
+      </div>
+
     </aside>
 
-    <!-- Conversazione -->
-    <main
-      class="conversation-panel"
-      *ngIf="!isMobile() || mobileChatOpen">
+    <!-- ── CONVERSAZIONE ── -->
+    <main class="conversation-panel" [class.visible]="!isMobile() || mobileChatOpen">
+
       <header class="conversation-header">
-        <div class="conversation-title-wrap">
-          <button
-            type="button"
-            class="back-button"
-            *ngIf="isMobile()"
-            (click)="closeMobileChat()">
-            ←
-          </button>
+        <button
+          type="button"
+          class="back-button"
+          *ngIf="isMobile()"
+          (click)="closeMobileChat()">
+          ←
+        </button>
 
-          <div>
-            <p class="eyebrow">{{ selectedThread().channel }}</p>
-            <h1>{{ selectedThread().customer }}</h1>
-            <p class="status">{{ selectedThread().status }}</p>
-          </div>
-        </div>
+        <div class="conv-avatar">{{ selectedThread().customer.charAt(0) }}</div>
 
-        <div class="unread-summary" *ngIf="unreadCount(selectedThread()) > 0">
-          {{ unreadCount(selectedThread()) }} non letti
+        <div class="conv-info">
+          <h1>{{ selectedThread().customer }}</h1>
+          <p class="conv-status"
+             [class.conv-status-online]="selectedThread().status === 'Online'">
+            {{ selectedThread().status }} · {{ selectedThread().channel }}
+          </p>
         </div>
       </header>
 
-      <div class="messages">
+      <div class="messages" #messageList>
+
+        <div class="date-divider">
+          <span>Oggi</span>
+        </div>
+
         <article
           class="message"
           *ngFor="let message of selectedThread().messages"
           [class.message-customer]="message.sender === 'customer'"
           [class.message-agent]="message.sender === 'agent'">
-          <p>{{ message.text }}</p>
-          <span>{{ message.time }}</span>
+          <div class="bubble"
+               [class.bubble-customer]="message.sender === 'customer'"
+               [class.bubble-agent]="message.sender === 'agent'">
+            <p>{{ message.text }}</p>
+            <div class="bubble-footer">
+              <span class="bubble-time">{{ message.time }}</span>
+              <span class="read-tick" *ngIf="message.sender === 'agent'">✓✓</span>
+            </div>
+          </div>
         </article>
+
       </div>
 
-      <form class="composer" (ngSubmit)="sendMessage()">
-        <textarea
-          name="message"
-          [(ngModel)]="draftMessage"
-          rows="2"
-          placeholder="Scrivi un messaggio..."
-          (keydown)="onComposerKeydown($event)"></textarea>
-        <button type="submit" class="send-button" [disabled]="!draftMessage.trim()">Invia</button>
-      </form>
+      <div class="composer">
+        <div class="composer-inner">
+          <button type="button" class="icon-btn" aria-label="Emoji">😊</button>
+          <textarea
+            [(ngModel)]="draftMessage"
+            rows="1"
+            placeholder="Scrivi un messaggio"
+            (keydown)="onComposerKeydown($event)"></textarea>
+          <button type="button" class="icon-btn" aria-label="Allega">📎</button>
+        </div>
+        <button
+          type="button"
+          class="send-button"
+          [disabled]="!draftMessage.trim()"
+          (click)="sendMessage()"
+          aria-label="Invia">
+          ➤
+        </button>
+      </div>
+
     </main>
 
   </div>
