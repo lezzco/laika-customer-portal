@@ -1,6 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Component, computed, signal } from '@angular/core';
+import { Component, computed, HostListener, signal } from '@angular/core';
 
 type Sender = 'agent' | 'customer';
 
@@ -30,7 +30,37 @@ type ChatThread = {
 })
 export class ChatComponent {
   mobileChatOpen = false;
+// ── Emoji picker ──
+emojiPickerOpen = false;
+activeEmojiCategory = 'Smiley';
 
+readonly emojiCategories = [
+  { label: 'Smiley', icon: '😊', emojis: ['😀','😃','😄','😁','😆','😅','😂','🤣','😊','😇','🙂','🙃','😉','😌','😍','🥰','😘','😗','😙','😚','😋','😛','😝','😜','🤪','🤨','🧐','🤓','😎','🥸','🤩','🥳','😏','😒','😞','😔','😟','😕','🙁','☹️','😣','😖','😫','😩','🥺','😢','😭','😤','😠','😡','🤬','🤯','😳','🥵','🥶','😱','😨','😰','😥','😓'] },
+  { label: 'Gesti', icon: '👍', emojis: ['👍','👎','👌','🤌','🤏','✌️','🤞','🤟','🤘','🤙','👈','👉','👆','🖕','👇','☝️','👋','🤚','🖐️','✋','🖖','💪','🦾','🙏','👏','🤝','🫶','❤️‍🔥','🫰','🫵','🤜','🤛','✊','👊','🤚','🙌','👐','🫙','🤲','🫱','🫲'] },
+  { label: 'Persone', icon: '👨', emojis: ['👶','🧒','👦','👧','🧑','👱','👨','🧔','👩','🧓','👴','👵','🧕','👲','👳','🦸','🦹','🧙','🧚','🧛','🧜','🧝','🧞','🧟','💆','💇','🚶','🧍','🧎','🏃','💃','🕺','👯','🧖','🧗','🏋️','🤸','🏊','🚴'] },
+  { label: 'Natura', icon: '🌿', emojis: ['🐶','🐱','🐭','🐹','🐰','🦊','🐻','🐼','🐻‍❄️','🐨','🐯','🦁','🐮','🐷','🐸','🐵','🐔','🐧','🐦','🦆','🦅','🦉','🦇','🐺','🐗','🌸','🌹','🌺','🌻','🌼','🌷','🍀','🌿','🍃','🌲','🌳','🌴','🌵','🎋'] },
+  { label: 'Cibo', icon: '🍕', emojis: ['🍕','🍔','🌭','🍟','🌮','🌯','🫔','🥙','🧆','🥚','🍳','🧇','🥞','🧈','🍞','🥐','🥖','🫓','🥨','🥯','🧀','🥗','🥘','🫕','🍲','🍜','🍝','🍛','🍣','🍱','🍤','🍙','🍚','🍘','🍥','🥮','🍡','🧁','🎂','🍰','🍫','🍬','🍭','☕','🍵','🧃','🥤','🍺','🍷'] },
+  { label: 'Viaggi', icon: '✈️', emojis: ['🚗','🚕','🚙','🚌','🚎','🏎️','🚓','🚑','🚒','🚐','🛻','🚚','🚛','🚜','🛵','🏍️','🚲','🛴','✈️','🚀','🛸','🚁','🛶','⛵','🚢','🚂','🚆','🚇','🚊','🏔️','⛰️','🌋','🗺️','🏕️','🏖️','🏜️','🏝️','🌅','🌆','🌇','🌉','🗼','🗽','🏰','🏯'] },
+  { label: 'Simboli', icon: '❤️', emojis: ['❤️','🧡','💛','💚','💙','💜','🖤','🤍','🤎','❤️‍🔥','💔','❣️','💕','💞','💓','💗','💖','💘','💝','💟','☮️','✝️','☯️','🕉️','✡️','🔯','☪️','🛐','♈','♉','♊','♋','♌','♍','♎','♏','♐','♑','♒','♓','⛎','🔀','🔁','🔂','▶️','⏸️','⏹️','🎵','🎶','💯','✅','❌','⭐','🌟','💫','⚡','🔥','🌈'] },
+];
+
+activeEmojis(): string[] {
+  return this.emojiCategories.find(c => c.label === this.activeEmojiCategory)?.emojis ?? [];
+}
+
+toggleEmojiPicker() {
+  this.emojiPickerOpen = !this.emojiPickerOpen;
+}
+
+insertEmoji(emoji: string) {
+  this.draftMessage += emoji;
+  this.emojiPickerOpen = false;
+}
+
+@HostListener('document:click')
+closeEmojiPicker() {
+  this.emojiPickerOpen = false;
+}
 isMobile(): boolean {
   return window.innerWidth <= 960;
 }
@@ -182,4 +212,35 @@ closeMobileChat(): void {
       minute: '2-digit',
     }).format(new Date());
   }
+
+  onFileSelected(event: Event) {
+  const input = event.target as HTMLInputElement;
+  if (!input.files?.length) return;
+
+  const selectedId = this.selectedThreadId();
+
+  Array.from(input.files).forEach(file => {
+    this.threads.update(threads =>
+      threads.map(thread => {
+        if (thread.id !== selectedId) return thread;
+
+        const nextMessage: ChatMessage = {
+          id: thread.messages.length + 1,
+          sender: 'agent',
+          text: `📎 ${file.name}`,
+          time: this.formatNow(),
+          read: true,
+        };
+
+        return {
+          ...thread,
+          lastMessageAt: nextMessage.time,
+          messages: [...thread.messages, nextMessage],
+        };
+      })
+    );
+  });
+
+  input.value = '';
+}
 }
