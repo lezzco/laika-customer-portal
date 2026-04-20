@@ -8,18 +8,18 @@ export const routes: Routes = [
   },
   {
     path: 'cockpit',
-    // canActivate: [authGuard],
+     canActivate: [authGuard],
     loadComponent: () => import('./pages/cockpit/cockpit.component').then(m => m.CockpitComponent),
   },
   {
     path:'charts',
-    // canActivate: [authGuard],
+    canActivate: [authGuard],
     loadComponent: () => import('./pages/chart-kpi/chart-kpi.component').then(m => m.ChartKpiComponent),
   },
   {
-    path:'',
-    // canActivate: [authGuard],
+    path:'chat',
+    canActivate: [authGuard],
     loadComponent: () => import('./pages/chat/chat.component').then(m => m.ChatComponent),
   },
-  { path: '**', redirectTo: '' },
+  { path: '**', redirectTo: '/login' },
 ];

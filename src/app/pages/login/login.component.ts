@@ -2,7 +2,7 @@ import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
-import { AuthService } from '../../core/auth/auth.service';
+import { AuthTokenService } from '../../core/auth/auth.service';
 
 @Component({
   selector: 'app-login',
@@ -17,7 +17,7 @@ export class LoginComponent {
   error: string | null = null;
   loading = false;
 
-  constructor(private auth: AuthService, private router: Router) {}
+  constructor(private auth: AuthTokenService, private router: Router) {}
 
   submit() {
     this.error = null;
@@ -26,7 +26,7 @@ export class LoginComponent {
     this.auth.login(this.email.trim(), this.password).subscribe({
       next: () => {
         this.loading = false;
-        this.router.navigateByUrl('/');
+        this.router.navigate(['chat'], { replaceUrl: true });
       },
       error: (e) => {
          this.router.navigateByUrl('/');
