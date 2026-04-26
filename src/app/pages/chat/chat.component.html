@@ -24,7 +24,7 @@
           type="button"
           class="thread-card"
           *ngFor="let thread of threads()"
-          [class.thread-card-active]="thread.id === selectedThread().id"
+          [class.thread-card-active]="thread.id === (selectedThread()?.id ?? -1)"
           (click)="openThread(thread.id)">
 
           <div class="thread-avatar">{{ thread.customer.charAt(0) }}</div>
@@ -54,106 +54,110 @@
     <!-- ── CONVERSAZIONE ── -->
     <main class="conversation-panel" [class.visible]="!isMobile() || mobileChatOpen">
 
-      <header class="conversation-header">
-        <button
-          type="button"
-          class="back-button"
-          *ngIf="isMobile()"
-          (click)="closeMobileChat()">
-          ←
-        </button>
+      <ng-container *ngIf="selectedThread() as thread">
 
-        <div class="conv-avatar">{{ selectedThread().customer.charAt(0) }}</div>
+        <header class="conversation-header">
+          <button
+            type="button"
+            class="back-button"
+            *ngIf="isMobile()"
+            (click)="closeMobileChat()">
+            ←
+          </button>
 
-        <div class="conv-info">
-          <h1>{{ selectedThread().customer }}</h1>
-          <p class="conv-status"
-             [class.conv-status-online]="selectedThread().status === 'Online'">
-            {{ selectedThread().status }} · {{ selectedThread().channel }}
-          </p>
-        </div>
-      </header>
+          <div class="conv-avatar">{{ thread.customer.charAt(0) }}</div>
 
-      <div class="messages" #messageList>
-
-        <div class="date-divider">
-          <span>Oggi</span>
-        </div>
-
-        <article
-          class="message"
-          *ngFor="let message of selectedThread().messages"
-          [class.message-customer]="message.sender === 'customer'"
-          [class.message-agent]="message.sender === 'agent'">
-          <div class="bubble"
-               [class.bubble-customer]="message.sender === 'customer'"
-               [class.bubble-agent]="message.sender === 'agent'">
-            <p>{{ message.text }}</p>
-            <div class="bubble-footer">
-              <span class="bubble-time">{{ message.time }}</span>
-              <span class="read-tick" *ngIf="message.sender === 'agent'">✓✓</span>
-            </div>
+          <div class="conv-info">
+            <h1>{{ thread.customer }}</h1>
+            <p class="conv-status"
+               [class.conv-status-online]="thread.status === 'Online'">
+              {{ thread.status }} · {{ thread.channel }}
+            </p>
           </div>
-        </article>
+        </header>
 
-      </div>
+        <div class="messages" #messageList>
 
-      <!-- ── EMOJI PICKER ── -->
-      <div class="emoji-picker" *ngIf="emojiPickerOpen" (click)="$event.stopPropagation()">
-        <div class="emoji-categories">
-          <button *ngFor="let cat of emojiCategories" type="button"
-            class="emoji-cat-btn"
-            [class.emoji-cat-active]="cat.label === activeEmojiCategory"
-            (click)="activeEmojiCategory = cat.label">
-            {{ cat.icon }}
-          </button>
+          <div class="date-divider">
+            <span>Oggi</span>
+          </div>
+
+          <article
+            class="message"
+            *ngFor="let message of thread.messages"
+            [class.message-customer]="message.sender === 'customer'"
+            [class.message-agent]="message.sender === 'agent'">
+            <div class="bubble"
+                 [class.bubble-customer]="message.sender === 'customer'"
+                 [class.bubble-agent]="message.sender === 'agent'">
+              <p>{{ message.text }}</p>
+              <div class="bubble-footer">
+                <span class="bubble-time">{{ message.time }}</span>
+                <span class="read-tick" *ngIf="message.sender === 'agent'">✓✓</span>
+              </div>
+            </div>
+          </article>
+
         </div>
-        <div class="emoji-grid">
-          <button *ngFor="let e of activeEmojis()" type="button"
-            class="emoji-item"
-            (click)="insertEmoji(e)">{{ e }}</button>
-        </div>
-      </div>
 
-      <div class="composer">
-        <div class="composer-inner">
-          <!-- Emoji icon -->
-          <button type="button" class="icon-btn" aria-label="Emoji" (click)="toggleEmojiPicker()">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="12" cy="12" r="10"/>
-              <path d="M8 14s1.5 2 4 2 4-2 4-2"/>
-              <line x1="9" y1="9" x2="9.01" y2="9"/>
-              <line x1="15" y1="9" x2="15.01" y2="9"/>
+        <!-- ── EMOJI PICKER ── -->
+        <div class="emoji-picker" *ngIf="emojiPickerOpen" (click)="$event.stopPropagation()">
+          <div class="emoji-categories">
+            <button *ngFor="let cat of emojiCategories" type="button"
+              class="emoji-cat-btn"
+              [class.emoji-cat-active]="cat.label === activeEmojiCategory"
+              (click)="activeEmojiCategory = cat.label">
+              {{ cat.icon }}
+            </button>
+          </div>
+          <div class="emoji-grid">
+            <button *ngFor="let e of activeEmojis()" type="button"
+              class="emoji-item"
+              (click)="insertEmoji(e)">{{ e }}</button>
+          </div>
+        </div>
+
+        <div class="composer">
+          <div class="composer-inner">
+            <!-- Emoji icon -->
+            <button type="button" class="icon-btn" aria-label="Emoji" (click)="toggleEmojiPicker()">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="M8 14s1.5 2 4 2 4-2 4-2"/>
+                <line x1="9" y1="9" x2="9.01" y2="9"/>
+                <line x1="15" y1="9" x2="15.01" y2="9"/>
+              </svg>
+            </button>
+
+            <textarea
+              [(ngModel)]="draftMessage"
+              rows="1"
+              placeholder="Scrivi un messaggio"
+              (keydown)="onComposerKeydown($event)"></textarea>
+
+            <!-- Attachment icon -->
+            <input type="file" #fileInput style="display:none" (change)="onFileSelected($event)" multiple />
+            <button type="button" class="icon-btn" aria-label="Allega" (click)="fileInput.click()">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+                <path d="M21.586 10.461l-10.05 10.075a6.004 6.004 0 0 1-8.49-8.49l10.075-10.05a4.002 4.002 0 0 1 5.66 5.66l-10.075 10.05a2.001 2.001 0 0 1-2.83-2.83l9.193-9.168 1.415 1.414-9.192 9.168a.001.001 0 0 0 .002.002l10.074-10.05a2.002 2.002 0 0 0-2.83-2.83L4.463 13.456a4.004 4.004 0 0 0 5.66 5.66l10.05-10.075 1.413 1.42z"/>
+              </svg>
+            </button>
+          </div>
+
+          <!-- Send icon -->
+          <button
+            type="button"
+            class="send-button"
+            [disabled]="!draftMessage.trim()"
+            (click)="sendMessage()"
+            aria-label="Invia">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
+              <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
             </svg>
           </button>
-
-          <textarea
-            [(ngModel)]="draftMessage"
-            rows="1"
-            placeholder="Scrivi un messaggio"
-            (keydown)="onComposerKeydown($event)"></textarea>
-
-          <!-- Attachment icon -->
-          <input type="file" #fileInput style="display:none" (change)="onFileSelected($event)" multiple />
-          <button type="button" class="icon-btn" aria-label="Allega" (click)="fileInput.click()">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
-              <path d="M21.586 10.461l-10.05 10.075a6.004 6.004 0 0 1-8.49-8.49l10.075-10.05a4.002 4.002 0 0 1 5.66 5.66l-10.075 10.05a2.001 2.001 0 0 1-2.83-2.83l9.193-9.168 1.415 1.414-9.192 9.168a.001.001 0 0 0 .002.002l10.074-10.05a2.002 2.002 0 0 0-2.83-2.83L4.463 13.456a4.004 4.004 0 0 0 5.66 5.66l10.05-10.075 1.413 1.42z"/>
-            </svg>
-          </button>
         </div>
 
-        <!-- Send icon -->
-        <button
-          type="button"
-          class="send-button"
-          [disabled]="!draftMessage.trim()"
-          (click)="sendMessage()"
-          aria-label="Invia">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
-            <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
-          </svg>
-        </button>
-      </div>
+      </ng-container>
 
     </main>
 

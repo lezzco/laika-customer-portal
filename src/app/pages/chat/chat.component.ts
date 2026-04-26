@@ -1,6 +1,8 @@
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Component, computed, HostListener, signal } from '@angular/core';
+import { Component, computed, HostListener, OnInit, signal } from '@angular/core';
+import { ChatService } from '../../services/chatService/chat.service';
+import { Chat } from '../../model/models';
 
 type Sender = 'agent' | 'customer';
 
@@ -28,9 +30,10 @@ type ChatThread = {
   templateUrl: './chat.component.html',
   styleUrl: './chat.component.css'
 })
-export class ChatComponent {
+export class ChatComponent implements OnInit {
   mobileChatOpen = false;
 // ── Emoji picker ──
+
 emojiPickerOpen = false;
 activeEmojiCategory = 'Smiley';
 
@@ -76,56 +79,7 @@ openThread(threadId: number): void {
 closeMobileChat(): void {
   this.mobileChatOpen = false;
 }
-  readonly threads = signal<ChatThread[]>([
-    {
-      id: 101,
-      customer: 'Vincenzo Pafundi',
-      channel: 'WhatsApp',
-      status: 'Online',
-      lastMessageAt: '10:42',
-      messages: [
-        { id: 1, sender: 'customer', text: 'Ciao, vorrei sapere dove si trova il mio ordine.', time: '10:31', read: true },
-        { id: 2, sender: 'agent', text: 'Controllo subito. Mi confermi il numero ordine?', time: '10:33', read: true },
-        { id: 3, sender: 'customer', text: 'ORD-24519', time: '10:34', read: true },
-        { id: 4, sender: 'agent', text: 'Perfetto, risulta in consegna per oggi.', time: '10:36', read: true },
-        { id: 5, sender: 'customer', text: 'Ottimo, grazie.', time: '10:42', read: false },
-      ],
-    },
-    {
-      id: 102,
-      customer: 'Marco Bianchi',
-      channel: 'Web Chat',
-      status: 'Nuovo',
-      lastMessageAt: '10:18',
-      messages: [
-        { id: 1, sender: 'customer', text: 'Non riesco ad accedere al mio account.', time: '10:16', read: false },
-        { id: 2, sender: 'customer', text: 'Potete aiutarmi?', time: '10:18', read: false },
-      ],
-    },
-    {
-      id: 103,
-      customer: 'Sara Verdi',
-      channel: 'Instagram',
-      status: 'In attesa',
-      lastMessageAt: '09:54',
-      messages: [
-        { id: 1, sender: 'customer', text: 'Vorrei fare un reso.', time: '09:40', read: true },
-        { id: 2, sender: 'agent', text: 'Certo, ti invio la procedura.', time: '09:43', read: true },
-        { id: 3, sender: 'customer', text: 'Grazie, resto in attesa.', time: '09:54', read: false },
-      ],
-    },
-    {
-      id: 104,
-      customer: 'Luca Neri',
-      channel: 'Messenger',
-      status: 'Online',
-      lastMessageAt: 'Ieri',
-      messages: [
-        { id: 1, sender: 'customer', text: 'Avete disponibilita della taglia M?', time: '18:21', read: true },
-        { id: 2, sender: 'agent', text: 'Si, e disponibile in magazzino.', time: '18:26', read: true },
-      ],
-    },
-  ]);
+  readonly threads = signal<ChatThread[]>([]);
 
   readonly selectedThreadId = signal(101);
   draftMessage = '';
@@ -138,8 +92,41 @@ closeMobileChat(): void {
     this.threads().reduce((total, thread) => total + this.unreadCount(thread), 0)
   );
 
-  constructor() {
+  constructor(private chatService: ChatService) {
     this.markThreadAsRead(this.selectedThreadId());
+  }
+  ngOnInit(): void {
+    this.chatService.getChatsFromCustomer('customer_marco').subscribe({
+  next: (chats) => {
+    const mapped: ChatThread[] = chats.map((chat: Chat, index: number) => {
+      const messages = chat.messages ?? [];
+      const lastMsg = messages[messages.length - 1];
+      const status: ChatThread['status'] = chat.handoff ? 'Online' : chat.is_active ? 'Nuovo' : 'In attesa';
+
+      return {
+        id: index + 1,
+        customer: chat.customer_id,
+        channel: 'Web Chat',
+        status,
+        lastMessageAt: lastMsg?.timestamp ?? '',
+        messages: messages.map((msg, msgIndex) => ({
+          id: msgIndex + 1,
+          sender: (msg.role !== 'user' ? 'customer' : 'agent') as Sender,
+          text: msg.content,
+          time: msg.timestamp,
+          read: true,
+        })),
+      };
+    });
+
+    this.threads.set(mapped);
+    if (mapped.length > 0) this.selectedThreadId.set(mapped[0].id);
+  },
+  error: (err) => {
+    console.error('Failed to load chats:', err);
+    this.threads.set([]);
+  }
+});
   }
 
   selectThread(threadId: number) {

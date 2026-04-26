@@ -9,11 +9,11 @@ type LoginResponse = { accessToken: string };
 
 @Injectable({ providedIn: 'root' })
 export class AuthTokenService {
-  private readonly _token = signal<string | null>(localStorage.getItem('access_token'));
-
+  private readonly _token = signal<string | null>(null);
+  private readonly _user = signal<User | null>(null);
   readonly token = computed(() => this._token());
   readonly isAuthenticated = computed(() => !!this._token());
-
+  
   constructor(private http: HttpClient,
     @Inject(BASE_LOGIN_URL) private baseUrl: string) { }
 
@@ -30,9 +30,10 @@ export class AuthTokenService {
       }
     ).pipe(
       tap(response => {
-        sessionStorage.setItem('access_token', response.access_token);
+       // sessionStorage.setItem('access_token', response.access_token);
         this._token.set(response.access_token);
-        sessionStorage.setItem('user', JSON.stringify(response.user));
+        //sessionStorage.setItem('user', JSON.stringify(response.user));
+        this._user.set(response.user);
       })
     );
 
@@ -46,12 +47,11 @@ export class AuthTokenService {
   
 
   getToken(): string | null {
-    return sessionStorage.getItem('access_token');
+    return this._token();
   }
 
   getUser(): User | null {
-    const user = sessionStorage.getItem('user');
-    return user ? JSON.parse(user) : null;
+    return this._user();
   }
 
   isLoggedIn(): boolean {
