@@ -15,7 +15,11 @@
       <div class="search-bar">
         <div class="search-wrap">
           <span class="search-icon">🔍</span>
-          <input type="text" placeholder="Cerca o inizia una nuova chat" readonly />
+          <input 
+            type="text" 
+            placeholder="Cerca o inizia una nuova chat"
+            [(ngModel)]="searchQuery"
+          />
         </div>
       </div>
 
@@ -23,7 +27,7 @@
         <button
           type="button"
           class="thread-card"
-          *ngFor="let thread of threads()"
+          *ngFor="let thread of filteredThreads()"
           [class.thread-card-active]="thread.id === (selectedThread()?.id ?? -1)"
           (click)="openThread(thread.id)">
 
@@ -47,6 +51,11 @@
           </div>
 
         </button>
+
+        <!-- Messaggio se nessun risultato -->
+        <div *ngIf="filteredThreads().length === 0 && searchQuery()" class="no-results">
+          <p>Nessuna conversazione trovata per "{{ searchQuery() }}"</p>
+        </div>
       </div>
 
     </aside>
@@ -106,14 +115,14 @@
             <button *ngFor="let cat of emojiCategories" type="button"
               class="emoji-cat-btn"
               [class.emoji-cat-active]="cat.label === activeEmojiCategory"
-              (click)="activeEmojiCategory = cat.label">
+              (click)="activeEmojiCategory = cat.label; $event.stopPropagation()">
               {{ cat.icon }}
             </button>
           </div>
-          <div class="emoji-grid">
+          <div class="emoji-grid" (click)="$event.stopPropagation()">
             <button *ngFor="let e of activeEmojis()" type="button"
               class="emoji-item"
-              (click)="insertEmoji(e)">{{ e }}</button>
+              (click)="insertEmoji(e); $event.stopPropagation()">{{ e }}</button>
           </div>
         </div>
 

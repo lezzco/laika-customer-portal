@@ -13,13 +13,13 @@ export class ChatService {
 
 
   constructor(private http: HttpClient,
-    @Inject(BASE_URL) private baseUrl: string , private authservice : AuthTokenService) { }
+    @Inject(BASE_URL) private baseUrl: string ) { }
 
 
     getChatsFromCustomer(customerId: string) {
-      const user =this.authservice.getUser();
-return this.http.get<{ items: Chat[]; next_cursor: string | null }>(
-    `${this.baseUrl}v1/conversations/customer/${user?.user_id}`
+      //customerId= "customer_marco";
+return this. http.get<{ items: Chat[]; next_cursor: string | null }>(
+    `${this.baseUrl}v1/conversations/customer/${customerId}`
   ).pipe(
     map(response => response.items ?? []),
     catchError(err => {

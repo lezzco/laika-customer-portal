@@ -3,6 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { Component, computed, HostListener, OnInit, signal } from '@angular/core';
 import { ChatService } from '../../services/chatService/chat.service';
 import { Chat } from '../../model/models';
+import { AuthTokenService } from '../../core/auth/auth.service';
 
 type Sender = 'agent' | 'customer';
 
@@ -47,6 +48,28 @@ readonly emojiCategories = [
   { label: 'Simboli', icon: '❤️', emojis: ['❤️','🧡','💛','💚','💙','💜','🖤','🤍','🤎','❤️‍🔥','💔','❣️','💕','💞','💓','💗','💖','💘','💝','💟','☮️','✝️','☯️','🕉️','✡️','🔯','☪️','🛐','♈','♉','♊','♋','♌','♍','♎','♏','♐','♑','♒','♓','⛎','🔀','🔁','🔂','▶️','⏸️','⏹️','🎵','🎶','💯','✅','❌','⭐','🌟','💫','⚡','🔥','🌈'] },
 ];
 
+searchQuery = signal('');
+
+  readonly filteredThreads = computed(() => {
+    const query = this.searchQuery().toLowerCase();
+    if (!query) return this.threads();
+
+    return this.threads()
+      .filter(thread => {
+        const nameMatch = thread.customer.toLowerCase().includes(query);
+        const messageMatch = thread.messages.some(msg =>
+          msg.text.toLowerCase().includes(query)
+        );
+        return nameMatch || messageMatch;
+      })
+      .sort((a, b) => {
+        // Threads con match nel nome vengono prima
+        const aNameMatch = a.customer.toLowerCase().includes(query);
+        const bNameMatch = b.customer.toLowerCase().includes(query);
+        return (bNameMatch ? 1 : 0) - (aNameMatch ? 1 : 0);
+      });
+  });
+
 activeEmojis(): string[] {
   return this.emojiCategories.find(c => c.label === this.activeEmojiCategory)?.emojis ?? [];
 }
@@ -60,8 +83,15 @@ insertEmoji(emoji: string) {
   this.emojiPickerOpen = false;
 }
 
-@HostListener('document:click')
-closeEmojiPicker() {
+@HostListener('document:click',['$event'])
+closeEmojiPicker(event: MouseEvent) {
+   const target = event.target as HTMLElement;
+  
+  // Non chiudere se clicki dentro il picker o sul bottone emoji
+  if (target.closest('.emoji-picker') || target.closest('[aria-label="Emoji"]')) {
+    return;
+  }
+  
   this.emojiPickerOpen = false;
 }
 isMobile(): boolean {
@@ -92,11 +122,12 @@ closeMobileChat(): void {
     this.threads().reduce((total, thread) => total + this.unreadCount(thread), 0)
   );
 
-  constructor(private chatService: ChatService) {
+  constructor(private chatService: ChatService , private authservice : AuthTokenService) {
     this.markThreadAsRead(this.selectedThreadId());
   }
   ngOnInit(): void {
-    this.chatService.getChatsFromCustomer('customer_marco').subscribe({
+    const customerId = this.authservice.getUser()?.user_id.toString() ?? '';
+    this.chatService.getChatsFromCustomer(customerId).subscribe({
   next: (chats) => {
     const mapped: ChatThread[] = chats.map((chat: Chat, index: number) => {
       const messages = chat.messages ?? [];
