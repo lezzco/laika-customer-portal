@@ -6,7 +6,7 @@
 
       <header class="threads-header">
         <div class="threads-header-left">
-          <div class="header-avatar">A</div>
+          <div class="header-avatar">{{ user?.full_name?.charAt(0) }}</div>
           <h2>Conversazioni</h2>
         </div>
         <div class="total-badge" *ngIf="totalUnread() > 0">{{ totalUnread() }}</div>

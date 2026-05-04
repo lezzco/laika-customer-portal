@@ -1,9 +1,13 @@
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Component, computed, HostListener, OnInit, signal } from '@angular/core';
+import { Component, computed, DestroyRef, HostListener, inject, OnInit, signal } from '@angular/core';
 import { ChatService } from '../../services/chatService/chat.service';
 import { Chat } from '../../model/models';
 import { AuthTokenService } from '../../core/auth/auth.service';
+import { SendMessageRequest } from '../../model/requestModel';
+import { WeksocketService } from '../../services/websocket/weksocket.service';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { ChatSocketEvent } from '../../model/websocketModel';
 
 type Sender = 'agent' | 'customer';
 
@@ -16,7 +20,7 @@ type ChatMessage = {
 };
 
 type ChatThread = {
-  id: number;
+  id: string;
   customer: string;
   channel: 'WhatsApp' | 'Instagram' | 'Web Chat' | 'Messenger';
   status: 'Online' | 'In attesa' | 'Nuovo';
@@ -34,6 +38,10 @@ type ChatThread = {
 export class ChatComponent implements OnInit {
   mobileChatOpen = false;
 // ── Emoji picker ──
+  private readonly destroyRef = inject(DestroyRef);
+
+  private readonly chatSocket = inject(WeksocketService);
+  public readonly  user = inject(AuthTokenService).getUser();
 
 emojiPickerOpen = false;
 activeEmojiCategory = 'Smiley';
@@ -98,12 +106,37 @@ isMobile(): boolean {
   return window.innerWidth <= 960;
 }
 
-openThread(threadId: number): void {
+openThread(threadId: string): void {
   this.selectThread(threadId);
-
+  this.chatService.setMessageRead(threadId).subscribe({
+    next: () => {
+      this.chatService.getChatById(threadId).subscribe({
+        next: (chat) => {
+          const c: ChatThread = {
+            id: chat.chat_id,
+            customer: chat.company_id,
+            channel: 'Web Chat',
+            status: chat.handoff ? 'Online' : chat.is_active ? 'Nuovo' : 'In attesa',
+            messages: chat.messages?.map((msg, msgIndex) => ({
+              id: msgIndex + 1,
+              sender: (msg.role !== 'user' ? 'customer' : 'agent') as Sender,
+              text: msg.content,
+              time: msg.timestamp,
+              read: msg.read,
+            })) ?? [],
+            lastMessageAt: chat.messages?.[chat.messages.length - 1]?.timestamp ?? '',
+          };
+          this.threads.update(threads =>
+            threads.map(t => t.id === threadId ? c : t)
+          );
+        }
+      });
+    }
+  });
   if (this.isMobile()) {
     this.mobileChatOpen = true;
   }
+
 }
 
 closeMobileChat(): void {
@@ -111,7 +144,7 @@ closeMobileChat(): void {
 }
   readonly threads = signal<ChatThread[]>([]);
 
-  readonly selectedThreadId = signal(101);
+  readonly selectedThreadId = signal("101");
   draftMessage = '';
 
   readonly selectedThread = computed(
@@ -123,11 +156,28 @@ closeMobileChat(): void {
   );
 
   constructor(private chatService: ChatService , private authservice : AuthTokenService) {
+    this.destroyRef.onDestroy(() => this.chatSocket.disconnect());
+    this.subscribeToSocket();
+
     this.markThreadAsRead(this.selectedThreadId());
+  }
+
+  private subscribeToSocket() {
+    this.chatSocket.connect();
+    this.chatSocket.events$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(event => {
+        this.applySocketEvent(event);
+      });
+  }
+
+  private applySocketEvent(event: any) {
+    
+    console.log('Received socket event:', event);
   }
   ngOnInit(): void {
     const customerId = this.authservice.getUser()?.user_id.toString() ?? '';
-    this.chatService.getChatsFromCustomer(customerId).subscribe({
+    this.chatService.getActiveChatSorted().subscribe({
   next: (chats) => {
     const mapped: ChatThread[] = chats.map((chat: Chat, index: number) => {
       const messages = chat.messages ?? [];
@@ -135,8 +185,8 @@ closeMobileChat(): void {
       const status: ChatThread['status'] = chat.handoff ? 'Online' : chat.is_active ? 'Nuovo' : 'In attesa';
 
       return {
-        id: index + 1,
-        customer: chat.customer_id,
+        id: chat.chat_id,
+        customer: chat.company_id,
         channel: 'Web Chat',
         status,
         lastMessageAt: lastMsg?.timestamp ?? '',
@@ -145,7 +195,9 @@ closeMobileChat(): void {
           sender: (msg.role !== 'user' ? 'customer' : 'agent') as Sender,
           text: msg.content,
           time: msg.timestamp,
-          read: true,
+          read: msg.read
+          
+          ,
         })),
       };
     });
@@ -160,7 +212,7 @@ closeMobileChat(): void {
 });
   }
 
-  selectThread(threadId: number) {
+  selectThread(threadId: string) {
     this.selectedThreadId.set(threadId);
     this.markThreadAsRead(threadId);
   }
@@ -174,33 +226,42 @@ closeMobileChat(): void {
   }
 
   sendMessage() {
-    const text = this.draftMessage.trim();
-    if (!text) return;
+  const text = this.draftMessage.trim();
+  if (!text) return;
 
-    const selectedId = this.selectedThreadId();
+  const selectedId = this.selectedThreadId();
 
-    this.threads.update(threads =>
-      threads.map(thread => {
-        if (thread.id !== selectedId) return thread;
+  this.chatService.sendMessages(new SendMessageRequest(this.selectedThread()?.id.toString() ?? '', text)).subscribe({
+    next: (response) => {
+      console.log('Message sent successfully:', response);
 
-        const nextMessage: ChatMessage = {
-          id: thread.messages.length + 1,
-          sender: 'agent',
-          text,
-          time: this.formatNow(),
-          read: true,
-        };
+      this.threads.update(threads =>
+        threads.map(thread => {
+          if (thread.id !== selectedId) return thread;
 
-        return {
-          ...thread,
-          lastMessageAt: nextMessage.time,
-          messages: [...thread.messages, nextMessage],
-        };
-      })
-    );
+          const nextMessage: ChatMessage = {
+            id: thread.messages.length + 1,
+            sender: 'agent',
+            text,
+            time: this.formatNow(),
+            read: true,
+          };
 
-    this.draftMessage = '';
-  }
+          return {
+            ...thread,
+            lastMessageAt: nextMessage.time,
+            messages: [...thread.messages, nextMessage],
+          };
+        })
+      );
+
+      this.draftMessage = '';
+    },
+    error: (err) => {
+      console.error('Errore invio messaggio:', err);
+    }
+  });
+}
 
   onComposerKeydown(event: KeyboardEvent) {
     if (event.key !== 'Enter' || event.shiftKey) return;
@@ -209,7 +270,7 @@ closeMobileChat(): void {
     this.sendMessage();
   }
 
-  private markThreadAsRead(threadId: number) {
+  private markThreadAsRead(threadId: string) {
     this.threads.update(threads =>
       threads.map(thread => {
         if (thread.id !== threadId) return thread;

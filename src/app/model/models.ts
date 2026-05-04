@@ -3,11 +3,12 @@ export interface ChatMessage {
   role: 'user' | 'assistant';
   timestamp: string;
   token?: null;
+  read:boolean;
 }
  
 export interface Chat {
   chat_id: string;
-  customer_id: string;
+  company_id: string;
   handoff: boolean;
   is_active: boolean;
   messages: ChatMessage[];
