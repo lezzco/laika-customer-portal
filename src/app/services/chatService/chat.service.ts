@@ -7,9 +7,7 @@ import { AuthTokenService } from '../../core/auth/auth.service';
 import { SendMessageRequest } from '../../model/requestModel';
 import { SendMessageResponse } from '../../model/responseModel';
 
-@Injectable({
-  providedIn: 'root'
-})
+
 @Injectable({ providedIn: 'root' })
 export class ChatService {
 

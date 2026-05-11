@@ -5,7 +5,7 @@ import { ChatService } from '../../services/chatService/chat.service';
 import { Chat } from '../../model/models';
 import { AuthTokenService } from '../../core/auth/auth.service';
 import { SendMessageRequest } from '../../model/requestModel';
-import { WeksocketService } from '../../services/websocket/weksocket.service';
+import { WebsocketService } from '../../services/websocket/weksocket.service';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ChatSocketEvent } from '../../model/websocketModel';
 
@@ -40,7 +40,7 @@ export class ChatComponent implements OnInit {
 // ── Emoji picker ──
   private readonly destroyRef = inject(DestroyRef);
 
-  private readonly chatSocket = inject(WeksocketService);
+  private readonly chatSocket = inject(WebsocketService);
   public readonly  user = inject(AuthTokenService).getUser();
 
 emojiPickerOpen = false;

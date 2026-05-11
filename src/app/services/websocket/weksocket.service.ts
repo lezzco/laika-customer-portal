@@ -3,11 +3,9 @@ import { Observable, Subject } from 'rxjs';
 import { AuthTokenService } from '../../core/auth/auth.service';
 import { ChatSocketEvent } from '../../model/websocketModel';
 
-@Injectable({
-  providedIn: 'root'
-})
+
 @Injectable({ providedIn: 'root' })
-export class WeksocketService {
+export class WebsocketService {
 
 
   private readonly zone = inject(NgZone);
