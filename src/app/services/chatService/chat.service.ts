@@ -4,8 +4,8 @@ import { BASE_LOGIN_URL, BASE_SENDMESSAGE_URL, BASE_URL } from '../../app.config
 import { Chat } from '../../model/models';
 import { catchError, map, Observable, of } from 'rxjs';
 import { AuthTokenService } from '../../core/auth/auth.service';
-import { SendMessageRequest } from '../../model/requestModel';
-import { SendMessageResponse } from '../../model/responseModel';
+import { HumanResponseRequest, SendMessageRequest } from '../../model/requestModel';
+import { ResponseMessage, SendMessageResponse } from '../../model/responseModel';
 
 
 @Injectable({ providedIn: 'root' })
@@ -34,6 +34,13 @@ return this. http.get<{ items: Chat[]; next_cursor: string | null }>(
     return this.http.post<SendMessageResponse>(this.sendMessageUrl+'chat/sendMessage/',messageRequest);
   }
 
+  sendHumanResponse(request: HumanResponseRequest): Observable<ResponseMessage> {
+    return this.http.post<ResponseMessage>(
+      `${this.sendMessageUrl}sendHumanResponse/`,
+      request
+    );
+  }
+
   setMessageRead(chat_id: string) :Observable<any>  {
     return this.http.post<any>(`${this.baseUrl}/messages/read-status`, {
     updates: { [chat_id]: [] }
@@ -42,7 +49,7 @@ return this. http.get<{ items: Chat[]; next_cursor: string | null }>(
 
   getActiveChatSorted(){
     return this.http.get<{ active_chats: Chat[];inactive_chats: Chat[];next_cursor: string | null }>(
-    `${this.baseUrl}/chats/first-batch-chat`
+    `${this.baseUrl}chats/first-batch-chat`
   ).pipe(
     map(response => [...(response.active_chats ?? []), ...(response.inactive_chats ?? [])]),
     catchError(err => {

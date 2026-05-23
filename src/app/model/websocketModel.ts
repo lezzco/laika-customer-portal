@@ -1,4 +1,13 @@
+export type NewMessageSocketEvent = {
+  type: 'new_message';
+  company_id: string;
+  conversation_id: string;
+  message_id: number;
+  message_content: string;
+};
+
 export type ChatSocketEvent =
+  | NewMessageSocketEvent
   | { type: 'thread.snapshot'; payload: ChatThread[] }
   | { type: 'thread.message'; payload: { threadId: number; message: ChatMessage } }
   | { type: 'thread.read'; payload: { threadId: number } }

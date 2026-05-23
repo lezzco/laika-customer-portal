@@ -20,13 +20,13 @@ export const appConfig: ApplicationConfig = {
 
 export const BASE_LOGIN_URL = new InjectionToken<string>('BASE_LOGIN_URL', {
   providedIn: 'root',
-  factory: () => 'https://0d7rdlj5w1.execute-api.eu-central-1.amazonaws.com/v1/' 
+  factory: () => 'https://xs6p4xtv3h.execute-api.eu-central-1.amazonaws.com/v1/' 
 })
 
 
 export const BASE_URL = new InjectionToken<string>('BASE_URL', {
   providedIn: 'root',
-  factory: () => 'https://2jysg9d7ob.execute-api.eu-central-1.amazonaws.com/v1/' 
+  factory: () => 'https://umaeflqqg5.execute-api.eu-central-1.amazonaws.com/v1/' 
 })
 
 export const BASE_SENDMESSAGE_URL = new InjectionToken<string>('BASE_SENDMESSAGE_URL', {

@@ -4,10 +4,10 @@ import { Component, computed, DestroyRef, HostListener, inject, OnInit, signal }
 import { ChatService } from '../../services/chatService/chat.service';
 import { Chat } from '../../model/models';
 import { AuthTokenService } from '../../core/auth/auth.service';
-import { SendMessageRequest } from '../../model/requestModel';
+import { HumanResponseRequest } from '../../model/requestModel';
 import { WebsocketService } from '../../services/websocket/weksocket.service';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { ChatSocketEvent } from '../../model/websocketModel';
+import { ChatSocketEvent, NewMessageSocketEvent } from '../../model/websocketModel';
 
 type Sender = 'agent' | 'customer';
 
@@ -111,21 +111,8 @@ openThread(threadId: string): void {
   this.chatService.setMessageRead(threadId).subscribe({
     next: () => {
       this.chatService.getChatById(threadId).subscribe({
-        next: (chat) => {
-          const c: ChatThread = {
-            id: chat.chat_id,
-            customer: chat.company_id,
-            channel: 'Web Chat',
-            status: chat.handoff ? 'Online' : chat.is_active ? 'Nuovo' : 'In attesa',
-            messages: chat.messages?.map((msg, msgIndex) => ({
-              id: msgIndex + 1,
-              sender: (msg.role !== 'user' ? 'customer' : 'agent') as Sender,
-              text: msg.content,
-              time: msg.timestamp,
-              read: msg.read,
-            })) ?? [],
-            lastMessageAt: chat.messages?.[chat.messages.length - 1]?.timestamp ?? '',
-          };
+        next: chat => {
+          const c = this.mapChatToThread(chat);
           this.threads.update(threads =>
             threads.map(t => t.id === threadId ? c : t)
           );
@@ -171,36 +158,94 @@ closeMobileChat(): void {
       });
   }
 
-  private applySocketEvent(event: any) {
-    
-    console.log('Received socket event:', event);
+  private applySocketEvent(event: ChatSocketEvent) {
+    if (event.type === 'new_message') {
+      this.handleNewMessage(event);
+    }
+  }
+
+  private handleNewMessage(event: NewMessageSocketEvent) {
+    if (event.company_id !== this.user?.company_id) return;
+
+    const conversationId = event.conversation_id;
+    const time = this.formatNow();
+    const isSelected = this.selectedThreadId() === conversationId;
+
+    const existing = this.threads().find(t => t.id === conversationId);
+    if (!existing) {
+      this.chatService.getChatById(conversationId).subscribe({
+        next: chat => this.upsertThreadFromChat(chat),
+        error: err => console.error('Chat non trovata dopo new_message:', err),
+      });
+      return;
+    }
+
+    const alreadyPresent = existing.messages.some(m => m.id === event.message_id);
+    if (alreadyPresent) return;
+
+    const incoming: ChatMessage = {
+      id: event.message_id,
+      sender: 'customer',
+      text: event.message_content,
+      time,
+      read: isSelected,
+    };
+
+    this.threads.update(threads => {
+      const updated = threads.map(thread => {
+        if (thread.id !== conversationId) return thread;
+
+        return {
+          ...thread,
+          lastMessageAt: time,
+          messages: [...thread.messages, incoming],
+        };
+      });
+
+      const thread = updated.find(t => t.id === conversationId);
+      if (!thread) return updated;
+
+      return [thread, ...updated.filter(t => t.id !== conversationId)];
+    });
+
+    if (isSelected) {
+      this.markThreadAsRead(conversationId);
+    }
+  }
+
+  private upsertThreadFromChat(chat: Chat) {
+    const thread = this.mapChatToThread(chat);
+    this.threads.update(threads => {
+      const idx = threads.findIndex(t => t.id === thread.id);
+      if (idx === -1) return [thread, ...threads];
+      return threads.map((t, i) => (i === idx ? thread : t));
+    });
+  }
+
+  private mapChatToThread(chat: Chat): ChatThread {
+    const messages = chat.messages ?? [];
+    const lastMsg = messages[messages.length - 1];
+
+    return {
+      id: chat.chat_id,
+      customer: chat.company_id,
+      channel: 'Web Chat',
+      status: chat.handoff ? 'Online' : chat.is_active ? 'Nuovo' : 'In attesa',
+      lastMessageAt: lastMsg?.timestamp ?? '',
+      messages: messages.map((msg, msgIndex) => ({
+        id: msgIndex + 1,
+        sender: (msg.role !== 'user' ? 'customer' : 'agent') as Sender,
+        text: msg.content,
+        time: msg.timestamp,
+        read: msg.read,
+      })),
+    };
   }
   ngOnInit(): void {
     const customerId = this.authservice.getUser()?.user_id.toString() ?? '';
     this.chatService.getActiveChatSorted().subscribe({
   next: (chats) => {
-    const mapped: ChatThread[] = chats.map((chat: Chat, index: number) => {
-      const messages = chat.messages ?? [];
-      const lastMsg = messages[messages.length - 1];
-      const status: ChatThread['status'] = chat.handoff ? 'Online' : chat.is_active ? 'Nuovo' : 'In attesa';
-
-      return {
-        id: chat.chat_id,
-        customer: chat.company_id,
-        channel: 'Web Chat',
-        status,
-        lastMessageAt: lastMsg?.timestamp ?? '',
-        messages: messages.map((msg, msgIndex) => ({
-          id: msgIndex + 1,
-          sender: (msg.role !== 'user' ? 'customer' : 'agent') as Sender,
-          text: msg.content,
-          time: msg.timestamp,
-          read: msg.read
-          
-          ,
-        })),
-      };
-    });
+    const mapped: ChatThread[] = chats.map((chat: Chat) => this.mapChatToThread(chat));
 
     this.threads.set(mapped);
     if (mapped.length > 0) this.selectedThreadId.set(mapped[0].id);
@@ -231,7 +276,13 @@ closeMobileChat(): void {
 
   const selectedId = this.selectedThreadId();
 
-  this.chatService.sendMessages(new SendMessageRequest(this.selectedThread()?.id.toString() ?? '', text)).subscribe({
+  this.chatService.sendHumanResponse(
+    new HumanResponseRequest(
+      this.selectedThread()?.id ?? '',
+      text,
+      this.user?.company_id ?? ''
+    )
+  ).subscribe({
     next: (response) => {
       console.log('Message sent successfully:', response);
 

@@ -20,10 +20,12 @@ export class WebsocketService {
     if (this.socket && this.socket.readyState <= WebSocket.OPEN) return;
 
     const token = this.auth.token();
-    // const url = this.buildSocketUrl(token);
-    const url = "wss://cds36ylgwc.execute-api.eu-central-1.amazonaws.com/test/";
+    const url = new URL("wss://2x0j08b0lh.execute-api.eu-central-1.amazonaws.com/development/");
+    if (token) {
+      url.searchParams.set('Authorization', `Bearer ${token}`);
+    }
 
-    this.socket = new WebSocket(url);
+    this.socket = new WebSocket(url.toString());
     
 
     this.socket.onopen = () => {
@@ -35,6 +37,7 @@ export class WebsocketService {
     console.log("✅ WebSocket connesso");
   };
     this.socket.onmessage = event => {
+      console.log("📩 Messaggio ricevuto:", event.data);
       this.zone.run(() => {
         const parsed = this.parseEvent(event.data);
         if (parsed) this.eventsSubject.next(parsed);
