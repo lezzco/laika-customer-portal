@@ -1,10 +1,10 @@
 import { HttpClient } from '@angular/common/http';
 import { Inject, Injectable } from '@angular/core';
-import { BASE_LOGIN_URL, BASE_SENDMESSAGE_URL, BASE_URL } from '../../app.config';
+import { BASE_SENDMESSAGE_URL, BASE_URL } from '../../app.config';
 import { Chat } from '../../model/models';
 import { catchError, map, Observable, of } from 'rxjs';
 import { AuthTokenService } from '../../core/auth/auth.service';
-import { HumanResponseRequest, SendMessageRequest } from '../../model/requestModel';
+import { HumanResponseRequest, SendMessageRequest, UpdateReadStatusRequest } from '../../model/requestModel';
 import { ResponseMessage, SendMessageResponse } from '../../model/responseModel';
 
 
@@ -36,15 +36,23 @@ return this. http.get<{ items: Chat[]; next_cursor: string | null }>(
 
   sendHumanResponse(request: HumanResponseRequest): Observable<ResponseMessage> {
     return this.http.post<ResponseMessage>(
-      `${this.sendMessageUrl}sendHumanResponse/`,
+      `${this.sendMessageUrl}chat/sendHumanResponse/`,
       request
     );
   }
 
-  setMessageRead(chat_id: string) :Observable<any>  {
-    return this.http.post<any>(`${this.baseUrl}/messages/read-status`, {
-    updates: { [chat_id]: [] }
-  });
+  /**
+   * POST /messages/read-status (Conversations API, BASE_URL).
+   * messagesRouter è montato con prefix "/messages" → path completo /messages/read-status.
+   * Array vuoto per chat_id = segna tutti i messaggi della chat come letti.
+   */
+  updateReadStatus(updates: Record<string, string[]>): Observable<void> {
+    const body: UpdateReadStatusRequest = { updates };
+    return this.http.post<void>(`${this.baseUrl}messages/read-status`, body);
+  }
+
+  markChatAsRead(chatId: string): Observable<void> {
+    return this.updateReadStatus({ [chatId]: [] });
   }
 
   getActiveChatSorted(){
@@ -60,6 +68,6 @@ return this. http.get<{ items: Chat[]; next_cursor: string | null }>(
   }
 
   getChatById(chat_id: string): Observable<Chat> {
-  return this.http.get<Chat>(`${this.baseUrl}/chats/${chat_id}`);
+  return this.http.get<Chat>(`${this.baseUrl}chats/${chat_id}`);
   }
 }

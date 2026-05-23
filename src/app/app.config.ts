@@ -31,6 +31,6 @@ export const BASE_URL = new InjectionToken<string>('BASE_URL', {
 
 export const BASE_SENDMESSAGE_URL = new InjectionToken<string>('BASE_SENDMESSAGE_URL', {
   providedIn: 'root',
-  factory: () => 'https://0d7rdlj5w1.execute-api.eu-central-1.amazonaws.com/v1/' 
+  factory: () => 'https://xs6p4xtv3h.execute-api.eu-central-1.amazonaws.com/v1/' 
 });
 

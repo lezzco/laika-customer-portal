@@ -107,23 +107,21 @@ isMobile(): boolean {
 }
 
 openThread(threadId: string): void {
-  this.selectThread(threadId);
-  this.chatService.setMessageRead(threadId).subscribe({
-    next: () => {
-      this.chatService.getChatById(threadId).subscribe({
-        next: chat => {
-          const c = this.mapChatToThread(chat);
-          this.threads.update(threads =>
-            threads.map(t => t.id === threadId ? c : t)
-          );
-        }
-      });
-    }
+  this.selectedThreadId.set(threadId);
+  this.syncReadStatus(threadId);
+
+  this.chatService.getChatById(threadId).subscribe({
+    next: chat => {
+      const c = this.mapChatToThread(chat);
+      this.threads.update(threads =>
+        threads.map(t => t.id === threadId ? c : t)
+      );
+    },
   });
+
   if (this.isMobile()) {
     this.mobileChatOpen = true;
   }
-
 }
 
 closeMobileChat(): void {
@@ -146,7 +144,6 @@ closeMobileChat(): void {
     this.destroyRef.onDestroy(() => this.chatSocket.disconnect());
     this.subscribeToSocket();
 
-    this.markThreadAsRead(this.selectedThreadId());
   }
 
   private subscribeToSocket() {
@@ -209,7 +206,7 @@ closeMobileChat(): void {
     });
 
     if (isSelected) {
-      this.markThreadAsRead(conversationId);
+      this.syncReadStatus(conversationId);
     }
   }
 
@@ -233,8 +230,8 @@ closeMobileChat(): void {
       status: chat.handoff ? 'Online' : chat.is_active ? 'Nuovo' : 'In attesa',
       lastMessageAt: lastMsg?.timestamp ?? '',
       messages: messages.map((msg, msgIndex) => ({
-        id: msgIndex + 1,
-        sender: (msg.role !== 'user' ? 'customer' : 'agent') as Sender,
+        id: msg.message_number ?? msgIndex + 1,
+        sender: (msg.role == 'user' ? 'customer' : 'agent') as Sender,
         text: msg.content,
         time: msg.timestamp,
         read: msg.read,
@@ -257,11 +254,6 @@ closeMobileChat(): void {
 });
   }
 
-  selectThread(threadId: string) {
-    this.selectedThreadId.set(threadId);
-    this.markThreadAsRead(threadId);
-  }
-
   unreadCount(thread: ChatThread) {
     return thread.messages.filter(message => message.sender === 'customer' && !message.read).length;
   }
@@ -279,8 +271,7 @@ closeMobileChat(): void {
   this.chatService.sendHumanResponse(
     new HumanResponseRequest(
       this.selectedThread()?.id ?? '',
-      text,
-      this.user?.company_id ?? ''
+      text     
     )
   ).subscribe({
     next: (response) => {
@@ -321,7 +312,14 @@ closeMobileChat(): void {
     this.sendMessage();
   }
 
-  private markThreadAsRead(threadId: string) {
+  private syncReadStatus(threadId: string) {
+    this.chatService.markChatAsRead(threadId).subscribe({
+      next: () => this.markThreadAsReadLocally(threadId),
+      error: err => console.error('Errore aggiornamento read-status:', err),
+    });
+  }
+
+  private markThreadAsReadLocally(threadId: string) {
     this.threads.update(threads =>
       threads.map(thread => {
         if (thread.id !== threadId) return thread;

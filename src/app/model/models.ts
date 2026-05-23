@@ -1,9 +1,10 @@
 export interface ChatMessage {
+  message_number?: number;
   content: string;
   role: 'user' | 'assistant';
   timestamp: string;
   token?: null;
-  read:boolean;
+  read: boolean;
 }
  
 export interface Chat {

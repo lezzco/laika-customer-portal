@@ -9,14 +9,16 @@ export class SendMessageRequest{
     }
 }
 
+export interface UpdateReadStatusRequest {
+    updates: Record<string, string[]>;
+}
+
 export class HumanResponseRequest {
     chat_id: string;
     human_message: string;
-    company_id: string;
 
-    constructor(chat_id: string, human_message: string, company_id: string) {
+    constructor(chat_id: string, human_message: string) {
         this.chat_id = chat_id;
         this.human_message = human_message;
-        this.company_id = company_id;
     }
 }
