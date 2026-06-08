@@ -10,4 +10,5 @@ export interface User{
     full_name: string;
     is_active: boolean;
     created_at: string;
+    company_id: string;
 }

@@ -1,6 +1,13 @@
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Component, computed, HostListener, signal } from '@angular/core';
+import { Component, computed, DestroyRef, ElementRef, HostListener, inject, OnInit, signal, ViewChild } from '@angular/core';
+import { ChatService } from '../../services/chatService/chat.service';
+import { Chat } from '../../model/models';
+import { AuthTokenService } from '../../core/auth/auth.service';
+import { HumanResponseRequest } from '../../model/requestModel';
+import { WebsocketService } from '../../services/websocket/weksocket.service';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { ChatSocketEvent, NewMessageSocketEvent } from '../../model/websocketModel';
 
 type Sender = 'agent' | 'customer';
 
@@ -8,12 +15,16 @@ type ChatMessage = {
   id: number;
   sender: Sender;
   text: string;
-  time: string;
+  timestamp: string;
   read: boolean;
 };
 
+type MessageTimelineItem =
+  | { kind: 'divider'; label: string; key: string }
+  | { kind: 'message'; message: ChatMessage; key: string };
+
 type ChatThread = {
-  id: number;
+  id: string;
   customer: string;
   channel: 'WhatsApp' | 'Instagram' | 'Web Chat' | 'Messenger';
   status: 'Online' | 'In attesa' | 'Nuovo';
@@ -28,9 +39,16 @@ type ChatThread = {
   templateUrl: './chat.component.html',
   styleUrl: './chat.component.css'
 })
-export class ChatComponent {
+export class ChatComponent implements OnInit {
+  @ViewChild('messageList') private messageListRef?: ElementRef<HTMLDivElement>;
+
   mobileChatOpen = false;
 // ── Emoji picker ──
+  private readonly destroyRef = inject(DestroyRef);
+
+  private readonly chatSocket = inject(WebsocketService);
+  public readonly  user = inject(AuthTokenService).getUser();
+
 emojiPickerOpen = false;
 activeEmojiCategory = 'Smiley';
 
@@ -43,6 +61,29 @@ readonly emojiCategories = [
   { label: 'Viaggi', icon: '✈️', emojis: ['🚗','🚕','🚙','🚌','🚎','🏎️','🚓','🚑','🚒','🚐','🛻','🚚','🚛','🚜','🛵','🏍️','🚲','🛴','✈️','🚀','🛸','🚁','🛶','⛵','🚢','🚂','🚆','🚇','🚊','🏔️','⛰️','🌋','🗺️','🏕️','🏖️','🏜️','🏝️','🌅','🌆','🌇','🌉','🗼','🗽','🏰','🏯'] },
   { label: 'Simboli', icon: '❤️', emojis: ['❤️','🧡','💛','💚','💙','💜','🖤','🤍','🤎','❤️‍🔥','💔','❣️','💕','💞','💓','💗','💖','💘','💝','💟','☮️','✝️','☯️','🕉️','✡️','🔯','☪️','🛐','♈','♉','♊','♋','♌','♍','♎','♏','♐','♑','♒','♓','⛎','🔀','🔁','🔂','▶️','⏸️','⏹️','🎵','🎶','💯','✅','❌','⭐','🌟','💫','⚡','🔥','🌈'] },
 ];
+
+searchQuery = signal('');
+
+  readonly filteredThreads = computed(() => {
+    const query = this.searchQuery().toLowerCase();
+    if (!query) return this.threads();
+
+    return this.threads()
+      .filter(thread => {
+        const nameMatch = thread.customer.toLowerCase().includes(query);
+        const messageMatch = thread.messages.some(msg =>
+          msg.text.toLowerCase().includes(query)
+        );
+        return nameMatch || messageMatch;
+      })
+      .sort((a, b) => {
+        const aNameMatch = a.customer.toLowerCase().includes(query);
+        const bNameMatch = b.customer.toLowerCase().includes(query);
+        const namePriority = (bNameMatch ? 1 : 0) - (aNameMatch ? 1 : 0);
+        if (namePriority !== 0) return namePriority;
+        return this.compareThreadsByLastMessage(b, a);
+      });
+  });
 
 activeEmojis(): string[] {
   return this.emojiCategories.find(c => c.label === this.activeEmojiCategory)?.emojis ?? [];
@@ -57,16 +98,33 @@ insertEmoji(emoji: string) {
   this.emojiPickerOpen = false;
 }
 
-@HostListener('document:click')
-closeEmojiPicker() {
+@HostListener('document:click',['$event'])
+closeEmojiPicker(event: MouseEvent) {
+   const target = event.target as HTMLElement;
+  
+  // Non chiudere se clicki dentro il picker o sul bottone emoji
+  if (target.closest('.emoji-picker') || target.closest('[aria-label="Emoji"]')) {
+    return;
+  }
+  
   this.emojiPickerOpen = false;
 }
 isMobile(): boolean {
   return window.innerWidth <= 960;
 }
 
-openThread(threadId: number): void {
-  this.selectThread(threadId);
+openThread(threadId: string): void {
+  this.selectedThreadId.set(threadId);
+  this.syncReadStatus(threadId);
+
+  this.chatService.getChatById(threadId).subscribe({
+    next: chat => {
+      const c = this.mapChatToThread(chat);
+      this.threads.update(threads =>
+        this.sortThreadsByLastMessage(threads.map(t => t.id === threadId ? c : t))
+      );
+    },
+  });
 
   if (this.isMobile()) {
     this.mobileChatOpen = true;
@@ -76,58 +134,9 @@ openThread(threadId: number): void {
 closeMobileChat(): void {
   this.mobileChatOpen = false;
 }
-  readonly threads = signal<ChatThread[]>([
-    {
-      id: 101,
-      customer: 'Vincenzo Pafundi',
-      channel: 'WhatsApp',
-      status: 'Online',
-      lastMessageAt: '10:42',
-      messages: [
-        { id: 1, sender: 'customer', text: 'Ciao, vorrei sapere dove si trova il mio ordine.', time: '10:31', read: true },
-        { id: 2, sender: 'agent', text: 'Controllo subito. Mi confermi il numero ordine?', time: '10:33', read: true },
-        { id: 3, sender: 'customer', text: 'ORD-24519', time: '10:34', read: true },
-        { id: 4, sender: 'agent', text: 'Perfetto, risulta in consegna per oggi.', time: '10:36', read: true },
-        { id: 5, sender: 'customer', text: 'Ottimo, grazie.', time: '10:42', read: false },
-      ],
-    },
-    {
-      id: 102,
-      customer: 'Marco Bianchi',
-      channel: 'Web Chat',
-      status: 'Nuovo',
-      lastMessageAt: '10:18',
-      messages: [
-        { id: 1, sender: 'customer', text: 'Non riesco ad accedere al mio account.', time: '10:16', read: false },
-        { id: 2, sender: 'customer', text: 'Potete aiutarmi?', time: '10:18', read: false },
-      ],
-    },
-    {
-      id: 103,
-      customer: 'Sara Verdi',
-      channel: 'Instagram',
-      status: 'In attesa',
-      lastMessageAt: '09:54',
-      messages: [
-        { id: 1, sender: 'customer', text: 'Vorrei fare un reso.', time: '09:40', read: true },
-        { id: 2, sender: 'agent', text: 'Certo, ti invio la procedura.', time: '09:43', read: true },
-        { id: 3, sender: 'customer', text: 'Grazie, resto in attesa.', time: '09:54', read: false },
-      ],
-    },
-    {
-      id: 104,
-      customer: 'Luca Neri',
-      channel: 'Messenger',
-      status: 'Online',
-      lastMessageAt: 'Ieri',
-      messages: [
-        { id: 1, sender: 'customer', text: 'Avete disponibilita della taglia M?', time: '18:21', read: true },
-        { id: 2, sender: 'agent', text: 'Si, e disponibile in magazzino.', time: '18:26', read: true },
-      ],
-    },
-  ]);
+  readonly threads = signal<ChatThread[]>([]);
 
-  readonly selectedThreadId = signal(101);
+  readonly selectedThreadId = signal("101");
   draftMessage = '';
 
   readonly selectedThread = computed(
@@ -138,13 +147,117 @@ closeMobileChat(): void {
     this.threads().reduce((total, thread) => total + this.unreadCount(thread), 0)
   );
 
-  constructor() {
-    this.markThreadAsRead(this.selectedThreadId());
+  constructor(private chatService: ChatService , private authservice : AuthTokenService) {
+    this.destroyRef.onDestroy(() => this.chatSocket.disconnect());
+    this.subscribeToSocket();
+
   }
 
-  selectThread(threadId: number) {
-    this.selectedThreadId.set(threadId);
-    this.markThreadAsRead(threadId);
+  private subscribeToSocket() {
+    this.chatSocket.connect();
+    this.chatSocket.events$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(event => {
+        this.applySocketEvent(event);
+      });
+  }
+
+  private applySocketEvent(event: ChatSocketEvent) {
+    if (event.type === 'new_message') {
+      this.handleNewMessage(event);
+    }
+  }
+
+  private handleNewMessage(event: NewMessageSocketEvent) {
+    if (event.company_id !== this.user?.company_id) return;
+
+    const conversationId = event.conversation_id;
+    const timestamp = this.nowTimestamp();
+    const isSelected = this.selectedThreadId() === conversationId;
+
+    const existing = this.threads().find(t => t.id === conversationId);
+    if (!existing) {
+      this.chatService.getChatById(conversationId).subscribe({
+        next: chat => this.upsertThreadFromChat(chat),
+        error: err => console.error('Chat non trovata dopo new_message:', err),
+      });
+      return;
+    }
+
+    const alreadyPresent = existing.messages.some(m => m.id === event.message_id);
+    if (alreadyPresent) return;
+
+    const incoming: ChatMessage = {
+      id: event.message_id,
+      sender: 'customer',
+      text: event.message_content,
+      timestamp,
+      read: isSelected,
+    };
+
+    this.threads.update(threads =>
+      this.sortThreadsByLastMessage(
+        threads.map(thread => {
+          if (thread.id !== conversationId) return thread;
+
+          return {
+            ...thread,
+            lastMessageAt: timestamp,
+            messages: [...thread.messages, incoming],
+          };
+        })
+      )
+    );
+
+    if (isSelected) {
+      this.syncReadStatus(conversationId);
+    }
+  }
+
+  private upsertThreadFromChat(chat: Chat) {
+    const thread = this.mapChatToThread(chat);
+    this.threads.update(threads => {
+      const idx = threads.findIndex(t => t.id === thread.id);
+      const next = idx === -1
+        ? [thread, ...threads]
+        : threads.map((t, i) => (i === idx ? thread : t));
+      return this.sortThreadsByLastMessage(next);
+    });
+  }
+
+  private mapChatToThread(chat: Chat): ChatThread {
+    const messages = chat.messages ?? [];
+    const lastMsg = messages[messages.length - 1];
+
+    return {
+      id: chat.chat_id,
+      customer: chat.company_id,
+      channel: 'Web Chat',
+      status: chat.handoff ? 'Online' : chat.is_active ? 'Nuovo' : 'In attesa',
+      lastMessageAt: lastMsg?.timestamp ?? '',
+      messages: messages.map((msg, msgIndex) => ({
+        id: msg.message_number ?? msgIndex + 1,
+        sender: (msg.role == 'user' ? 'customer' : 'agent') as Sender,
+        text: msg.content,
+        timestamp: msg.timestamp,
+        read: msg.read,
+      })),
+    };
+  }
+  ngOnInit(): void {
+    const customerId = this.authservice.getUser()?.user_id.toString() ?? '';
+    this.chatService.getActiveChatSorted().subscribe({
+  next: (chats) => {
+    const mapped: ChatThread[] = chats.map((chat: Chat) => this.mapChatToThread(chat));
+
+    this.threads.set(this.sortThreadsByLastMessage(mapped));
+    if (mapped.length > 0) this.selectedThreadId.set(mapped[0].id);
+  },
+  error: (err) => {
+    console.error('Failed to load chats:', err);
+    this.threads.set([]);
+  }
+});
   }
 
   unreadCount(thread: ChatThread) {
@@ -156,33 +269,50 @@ closeMobileChat(): void {
   }
 
   sendMessage() {
-    const text = this.draftMessage.trim();
-    if (!text) return;
+  const text = this.draftMessage.trim();
+  if (!text) return;
 
-    const selectedId = this.selectedThreadId();
+  const selectedId = this.selectedThreadId();
 
-    this.threads.update(threads =>
-      threads.map(thread => {
-        if (thread.id !== selectedId) return thread;
+  this.chatService.sendHumanResponse(
+    new HumanResponseRequest(
+      this.selectedThread()?.id ?? '',
+      text     
+    )
+  ).subscribe({
+    next: (response) => {
+      console.log('Message sent successfully:', response);
 
-        const nextMessage: ChatMessage = {
-          id: thread.messages.length + 1,
-          sender: 'agent',
-          text,
-          time: this.formatNow(),
-          read: true,
-        };
+      this.threads.update(threads =>
+        this.sortThreadsByLastMessage(
+          threads.map(thread => {
+            if (thread.id !== selectedId) return thread;
 
-        return {
-          ...thread,
-          lastMessageAt: nextMessage.time,
-          messages: [...thread.messages, nextMessage],
-        };
-      })
-    );
+            const nextMessage: ChatMessage = {
+              id: thread.messages.length + 1,
+              sender: 'agent',
+              text,
+              timestamp: this.nowTimestamp(),
+              read: true,
+            };
 
-    this.draftMessage = '';
-  }
+            return {
+              ...thread,
+              lastMessageAt: nextMessage.timestamp,
+              messages: [...thread.messages, nextMessage],
+            };
+          })
+        )
+      );
+
+      this.draftMessage = '';
+      this.scrollMessagesToEnd();
+    },
+    error: (err) => {
+      console.error('Errore invio messaggio:', err);
+    }
+  });
+}
 
   onComposerKeydown(event: KeyboardEvent) {
     if (event.key !== 'Enter' || event.shiftKey) return;
@@ -191,7 +321,14 @@ closeMobileChat(): void {
     this.sendMessage();
   }
 
-  private markThreadAsRead(threadId: number) {
+  private syncReadStatus(threadId: string) {
+    this.chatService.markChatAsRead(threadId).subscribe({
+      next: () => this.markThreadAsReadLocally(threadId),
+      error: err => console.error('Errore aggiornamento read-status:', err),
+    });
+  }
+
+  private markThreadAsReadLocally(threadId: string) {
     this.threads.update(threads =>
       threads.map(thread => {
         if (thread.id !== threadId) return thread;
@@ -206,11 +343,146 @@ closeMobileChat(): void {
     );
   }
 
-  private formatNow() {
+  getMessageTimeline(messages: ChatMessage[]): MessageTimelineItem[] {
+    const items: MessageTimelineItem[] = [];
+    let lastDayKey = '';
+
+    for (const message of messages) {
+      const date = this.parseTimestamp(message.timestamp);
+      const dayKey = date ? this.dayKey(date) : message.timestamp;
+
+      if (dayKey !== lastDayKey) {
+        items.push({
+          kind: 'divider',
+          label: this.formatWhatsAppDate(message.timestamp),
+          key: `divider-${dayKey}`,
+        });
+        lastDayKey = dayKey;
+      }
+
+      items.push({
+        kind: 'message',
+        message,
+        key: `msg-${message.id}`,
+      });
+    }
+
+    return items;
+  }
+
+  formatMessageTime(timestamp: string): string {
+    const date = this.parseTimestamp(timestamp);
+    if (!date) return timestamp;
+
     return new Intl.DateTimeFormat('it-IT', {
       hour: '2-digit',
       minute: '2-digit',
-    }).format(new Date());
+    }).format(date);
+  }
+
+  formatThreadListTime(timestamp: string): string {
+    const date = this.parseTimestamp(timestamp);
+    if (!date) return timestamp;
+
+    const today = this.startOfDay(new Date());
+    const messageDay = this.startOfDay(date);
+
+    if (messageDay.getTime() === today.getTime()) {
+      return this.formatMessageTime(timestamp);
+    }
+
+    const yesterday = new Date(today);
+    yesterday.setDate(today.getDate() - 1);
+    if (messageDay.getTime() === yesterday.getTime()) {
+      return 'Ieri';
+    }
+
+    const weekStart = new Date(today);
+    const day = weekStart.getDay();
+    const diff = day === 0 ? 6 : day - 1;
+    weekStart.setDate(weekStart.getDate() - diff);
+
+    if (messageDay >= weekStart) {
+      return new Intl.DateTimeFormat('it-IT', { weekday: 'short' }).format(date);
+    }
+
+    return new Intl.DateTimeFormat('it-IT', {
+      day: '2-digit',
+      month: '2-digit',
+      year: '2-digit',
+    }).format(date);
+  }
+
+  private formatWhatsAppDate(timestamp: string): string {
+    const date = this.parseTimestamp(timestamp);
+    if (!date) return timestamp;
+
+    const today = this.startOfDay(new Date());
+    const messageDay = this.startOfDay(date);
+
+    if (messageDay.getTime() === today.getTime()) {
+      return 'Oggi';
+    }
+
+    const yesterday = new Date(today);
+    yesterday.setDate(today.getDate() - 1);
+    if (messageDay.getTime() === yesterday.getTime()) {
+      return 'Ieri';
+    }
+
+    const weekStart = new Date(today);
+    const day = weekStart.getDay();
+    const diff = day === 0 ? 6 : day - 1;
+    weekStart.setDate(weekStart.getDate() - diff);
+
+    if (messageDay >= weekStart) {
+      const weekday = new Intl.DateTimeFormat('it-IT', { weekday: 'long' }).format(date);
+      return weekday.charAt(0).toUpperCase() + weekday.slice(1);
+    }
+
+    return new Intl.DateTimeFormat('it-IT', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    }).format(date);
+  }
+
+  private scrollMessagesToEnd(): void {
+    setTimeout(() => {
+      const el = this.messageListRef?.nativeElement;
+      if (!el) return;
+      el.scrollTop = el.scrollHeight;
+    });
+  }
+
+  private sortThreadsByLastMessage(threads: ChatThread[]): ChatThread[] {
+    return [...threads].sort((a, b) => this.compareThreadsByLastMessage(a, b));
+  }
+
+  private compareThreadsByLastMessage(a: ChatThread, b: ChatThread): number {
+    const aTime = this.parseTimestamp(a.lastMessageAt)?.getTime() ?? 0;
+    const bTime = this.parseTimestamp(b.lastMessageAt)?.getTime() ?? 0;
+    return bTime - aTime;
+  }
+
+  private nowTimestamp(): string {
+    return new Date().toISOString();
+  }
+
+  private parseTimestamp(value: string): Date | null {
+    if (!value) return null;
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+
+  private startOfDay(date: Date): Date {
+    const copy = new Date(date);
+    copy.setHours(0, 0, 0, 0);
+    return copy;
+  }
+
+  private dayKey(date: Date): string {
+    return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
   }
 
   onFileSelected(event: Event) {
@@ -221,23 +493,25 @@ closeMobileChat(): void {
 
   Array.from(input.files).forEach(file => {
     this.threads.update(threads =>
-      threads.map(thread => {
-        if (thread.id !== selectedId) return thread;
+      this.sortThreadsByLastMessage(
+        threads.map(thread => {
+          if (thread.id !== selectedId) return thread;
 
-        const nextMessage: ChatMessage = {
-          id: thread.messages.length + 1,
-          sender: 'agent',
-          text: `📎 ${file.name}`,
-          time: this.formatNow(),
-          read: true,
-        };
+          const nextMessage: ChatMessage = {
+            id: thread.messages.length + 1,
+            sender: 'agent',
+            text: `📎 ${file.name}`,
+            timestamp: this.nowTimestamp(),
+            read: true,
+          };
 
-        return {
-          ...thread,
-          lastMessageAt: nextMessage.time,
-          messages: [...thread.messages, nextMessage],
-        };
-      })
+          return {
+            ...thread,
+            lastMessageAt: nextMessage.timestamp,
+            messages: [...thread.messages, nextMessage],
+          };
+        })
+      )
     );
   });
 
