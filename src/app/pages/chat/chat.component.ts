@@ -1,6 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Component, computed, DestroyRef, HostListener, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, DestroyRef, ElementRef, HostListener, inject, OnInit, signal, ViewChild } from '@angular/core';
 import { ChatService } from '../../services/chatService/chat.service';
 import { Chat } from '../../model/models';
 import { AuthTokenService } from '../../core/auth/auth.service';
@@ -15,9 +15,13 @@ type ChatMessage = {
   id: number;
   sender: Sender;
   text: string;
-  time: string;
+  timestamp: string;
   read: boolean;
 };
+
+type MessageTimelineItem =
+  | { kind: 'divider'; label: string; key: string }
+  | { kind: 'message'; message: ChatMessage; key: string };
 
 type ChatThread = {
   id: string;
@@ -36,6 +40,8 @@ type ChatThread = {
   styleUrl: './chat.component.css'
 })
 export class ChatComponent implements OnInit {
+  @ViewChild('messageList') private messageListRef?: ElementRef<HTMLDivElement>;
+
   mobileChatOpen = false;
 // ── Emoji picker ──
   private readonly destroyRef = inject(DestroyRef);
@@ -71,10 +77,11 @@ searchQuery = signal('');
         return nameMatch || messageMatch;
       })
       .sort((a, b) => {
-        // Threads con match nel nome vengono prima
         const aNameMatch = a.customer.toLowerCase().includes(query);
         const bNameMatch = b.customer.toLowerCase().includes(query);
-        return (bNameMatch ? 1 : 0) - (aNameMatch ? 1 : 0);
+        const namePriority = (bNameMatch ? 1 : 0) - (aNameMatch ? 1 : 0);
+        if (namePriority !== 0) return namePriority;
+        return this.compareThreadsByLastMessage(b, a);
       });
   });
 
@@ -114,7 +121,7 @@ openThread(threadId: string): void {
     next: chat => {
       const c = this.mapChatToThread(chat);
       this.threads.update(threads =>
-        threads.map(t => t.id === threadId ? c : t)
+        this.sortThreadsByLastMessage(threads.map(t => t.id === threadId ? c : t))
       );
     },
   });
@@ -165,7 +172,7 @@ closeMobileChat(): void {
     if (event.company_id !== this.user?.company_id) return;
 
     const conversationId = event.conversation_id;
-    const time = this.formatNow();
+    const timestamp = this.nowTimestamp();
     const isSelected = this.selectedThreadId() === conversationId;
 
     const existing = this.threads().find(t => t.id === conversationId);
@@ -184,26 +191,23 @@ closeMobileChat(): void {
       id: event.message_id,
       sender: 'customer',
       text: event.message_content,
-      time,
+      timestamp,
       read: isSelected,
     };
 
-    this.threads.update(threads => {
-      const updated = threads.map(thread => {
-        if (thread.id !== conversationId) return thread;
+    this.threads.update(threads =>
+      this.sortThreadsByLastMessage(
+        threads.map(thread => {
+          if (thread.id !== conversationId) return thread;
 
-        return {
-          ...thread,
-          lastMessageAt: time,
-          messages: [...thread.messages, incoming],
-        };
-      });
-
-      const thread = updated.find(t => t.id === conversationId);
-      if (!thread) return updated;
-
-      return [thread, ...updated.filter(t => t.id !== conversationId)];
-    });
+          return {
+            ...thread,
+            lastMessageAt: timestamp,
+            messages: [...thread.messages, incoming],
+          };
+        })
+      )
+    );
 
     if (isSelected) {
       this.syncReadStatus(conversationId);
@@ -214,8 +218,10 @@ closeMobileChat(): void {
     const thread = this.mapChatToThread(chat);
     this.threads.update(threads => {
       const idx = threads.findIndex(t => t.id === thread.id);
-      if (idx === -1) return [thread, ...threads];
-      return threads.map((t, i) => (i === idx ? thread : t));
+      const next = idx === -1
+        ? [thread, ...threads]
+        : threads.map((t, i) => (i === idx ? thread : t));
+      return this.sortThreadsByLastMessage(next);
     });
   }
 
@@ -233,7 +239,7 @@ closeMobileChat(): void {
         id: msg.message_number ?? msgIndex + 1,
         sender: (msg.role == 'user' ? 'customer' : 'agent') as Sender,
         text: msg.content,
-        time: msg.timestamp,
+        timestamp: msg.timestamp,
         read: msg.read,
       })),
     };
@@ -244,7 +250,7 @@ closeMobileChat(): void {
   next: (chats) => {
     const mapped: ChatThread[] = chats.map((chat: Chat) => this.mapChatToThread(chat));
 
-    this.threads.set(mapped);
+    this.threads.set(this.sortThreadsByLastMessage(mapped));
     if (mapped.length > 0) this.selectedThreadId.set(mapped[0].id);
   },
   error: (err) => {
@@ -278,26 +284,29 @@ closeMobileChat(): void {
       console.log('Message sent successfully:', response);
 
       this.threads.update(threads =>
-        threads.map(thread => {
-          if (thread.id !== selectedId) return thread;
+        this.sortThreadsByLastMessage(
+          threads.map(thread => {
+            if (thread.id !== selectedId) return thread;
 
-          const nextMessage: ChatMessage = {
-            id: thread.messages.length + 1,
-            sender: 'agent',
-            text,
-            time: this.formatNow(),
-            read: true,
-          };
+            const nextMessage: ChatMessage = {
+              id: thread.messages.length + 1,
+              sender: 'agent',
+              text,
+              timestamp: this.nowTimestamp(),
+              read: true,
+            };
 
-          return {
-            ...thread,
-            lastMessageAt: nextMessage.time,
-            messages: [...thread.messages, nextMessage],
-          };
-        })
+            return {
+              ...thread,
+              lastMessageAt: nextMessage.timestamp,
+              messages: [...thread.messages, nextMessage],
+            };
+          })
+        )
       );
 
       this.draftMessage = '';
+      this.scrollMessagesToEnd();
     },
     error: (err) => {
       console.error('Errore invio messaggio:', err);
@@ -334,11 +343,146 @@ closeMobileChat(): void {
     );
   }
 
-  private formatNow() {
+  getMessageTimeline(messages: ChatMessage[]): MessageTimelineItem[] {
+    const items: MessageTimelineItem[] = [];
+    let lastDayKey = '';
+
+    for (const message of messages) {
+      const date = this.parseTimestamp(message.timestamp);
+      const dayKey = date ? this.dayKey(date) : message.timestamp;
+
+      if (dayKey !== lastDayKey) {
+        items.push({
+          kind: 'divider',
+          label: this.formatWhatsAppDate(message.timestamp),
+          key: `divider-${dayKey}`,
+        });
+        lastDayKey = dayKey;
+      }
+
+      items.push({
+        kind: 'message',
+        message,
+        key: `msg-${message.id}`,
+      });
+    }
+
+    return items;
+  }
+
+  formatMessageTime(timestamp: string): string {
+    const date = this.parseTimestamp(timestamp);
+    if (!date) return timestamp;
+
     return new Intl.DateTimeFormat('it-IT', {
       hour: '2-digit',
       minute: '2-digit',
-    }).format(new Date());
+    }).format(date);
+  }
+
+  formatThreadListTime(timestamp: string): string {
+    const date = this.parseTimestamp(timestamp);
+    if (!date) return timestamp;
+
+    const today = this.startOfDay(new Date());
+    const messageDay = this.startOfDay(date);
+
+    if (messageDay.getTime() === today.getTime()) {
+      return this.formatMessageTime(timestamp);
+    }
+
+    const yesterday = new Date(today);
+    yesterday.setDate(today.getDate() - 1);
+    if (messageDay.getTime() === yesterday.getTime()) {
+      return 'Ieri';
+    }
+
+    const weekStart = new Date(today);
+    const day = weekStart.getDay();
+    const diff = day === 0 ? 6 : day - 1;
+    weekStart.setDate(weekStart.getDate() - diff);
+
+    if (messageDay >= weekStart) {
+      return new Intl.DateTimeFormat('it-IT', { weekday: 'short' }).format(date);
+    }
+
+    return new Intl.DateTimeFormat('it-IT', {
+      day: '2-digit',
+      month: '2-digit',
+      year: '2-digit',
+    }).format(date);
+  }
+
+  private formatWhatsAppDate(timestamp: string): string {
+    const date = this.parseTimestamp(timestamp);
+    if (!date) return timestamp;
+
+    const today = this.startOfDay(new Date());
+    const messageDay = this.startOfDay(date);
+
+    if (messageDay.getTime() === today.getTime()) {
+      return 'Oggi';
+    }
+
+    const yesterday = new Date(today);
+    yesterday.setDate(today.getDate() - 1);
+    if (messageDay.getTime() === yesterday.getTime()) {
+      return 'Ieri';
+    }
+
+    const weekStart = new Date(today);
+    const day = weekStart.getDay();
+    const diff = day === 0 ? 6 : day - 1;
+    weekStart.setDate(weekStart.getDate() - diff);
+
+    if (messageDay >= weekStart) {
+      const weekday = new Intl.DateTimeFormat('it-IT', { weekday: 'long' }).format(date);
+      return weekday.charAt(0).toUpperCase() + weekday.slice(1);
+    }
+
+    return new Intl.DateTimeFormat('it-IT', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    }).format(date);
+  }
+
+  private scrollMessagesToEnd(): void {
+    setTimeout(() => {
+      const el = this.messageListRef?.nativeElement;
+      if (!el) return;
+      el.scrollTop = el.scrollHeight;
+    });
+  }
+
+  private sortThreadsByLastMessage(threads: ChatThread[]): ChatThread[] {
+    return [...threads].sort((a, b) => this.compareThreadsByLastMessage(a, b));
+  }
+
+  private compareThreadsByLastMessage(a: ChatThread, b: ChatThread): number {
+    const aTime = this.parseTimestamp(a.lastMessageAt)?.getTime() ?? 0;
+    const bTime = this.parseTimestamp(b.lastMessageAt)?.getTime() ?? 0;
+    return bTime - aTime;
+  }
+
+  private nowTimestamp(): string {
+    return new Date().toISOString();
+  }
+
+  private parseTimestamp(value: string): Date | null {
+    if (!value) return null;
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+
+  private startOfDay(date: Date): Date {
+    const copy = new Date(date);
+    copy.setHours(0, 0, 0, 0);
+    return copy;
+  }
+
+  private dayKey(date: Date): string {
+    return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
   }
 
   onFileSelected(event: Event) {
@@ -349,23 +493,25 @@ closeMobileChat(): void {
 
   Array.from(input.files).forEach(file => {
     this.threads.update(threads =>
-      threads.map(thread => {
-        if (thread.id !== selectedId) return thread;
+      this.sortThreadsByLastMessage(
+        threads.map(thread => {
+          if (thread.id !== selectedId) return thread;
 
-        const nextMessage: ChatMessage = {
-          id: thread.messages.length + 1,
-          sender: 'agent',
-          text: `📎 ${file.name}`,
-          time: this.formatNow(),
-          read: true,
-        };
+          const nextMessage: ChatMessage = {
+            id: thread.messages.length + 1,
+            sender: 'agent',
+            text: `📎 ${file.name}`,
+            timestamp: this.nowTimestamp(),
+            read: true,
+          };
 
-        return {
-          ...thread,
-          lastMessageAt: nextMessage.time,
-          messages: [...thread.messages, nextMessage],
-        };
-      })
+          return {
+            ...thread,
+            lastMessageAt: nextMessage.timestamp,
+            messages: [...thread.messages, nextMessage],
+          };
+        })
+      )
     );
   });
 

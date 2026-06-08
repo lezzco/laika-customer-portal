@@ -37,7 +37,7 @@
             <div class="thread-top">
               <strong>{{ thread.customer }}</strong>
               <span class="thread-time" [class.thread-time-unread]="unreadCount(thread) > 0">
-                {{ thread.lastMessageAt }}
+                {{ formatThreadListTime(thread.lastMessageAt) }}
               </span>
             </div>
             <div class="thread-bottom">
@@ -87,25 +87,27 @@
 
         <div class="messages" #messageList>
 
-          <div class="date-divider">
-            <span>Oggi</span>
-          </div>
-
-          <article
-            class="message"
-            *ngFor="let message of thread.messages"
-            [class.message-customer]="message.sender === 'customer'"
-            [class.message-agent]="message.sender === 'agent'">
-            <div class="bubble"
-                 [class.bubble-customer]="message.sender === 'customer'"
-                 [class.bubble-agent]="message.sender === 'agent'">
-              <p>{{ message.text }}</p>
-              <div class="bubble-footer">
-                <span class="bubble-time">{{ message.time }}</span>
-                <span class="read-tick" *ngIf="message.sender === 'agent'">✓✓</span>
-              </div>
+          <ng-container *ngFor="let item of getMessageTimeline(thread.messages)">
+            <div class="date-divider" *ngIf="item.kind === 'divider'">
+              <span>{{ item.label }}</span>
             </div>
-          </article>
+
+            <article
+              class="message"
+              *ngIf="item.kind === 'message'"
+              [class.message-customer]="item.message.sender === 'customer'"
+              [class.message-agent]="item.message.sender === 'agent'">
+              <div class="bubble"
+                   [class.bubble-customer]="item.message.sender === 'customer'"
+                   [class.bubble-agent]="item.message.sender === 'agent'">
+                <p>{{ item.message.text }}</p>
+                <div class="bubble-footer">
+                  <span class="bubble-time">{{ formatMessageTime(item.message.timestamp) }}</span>
+                  <span class="read-tick" *ngIf="item.message.sender === 'agent'">✓✓</span>
+                </div>
+              </div>
+            </article>
+          </ng-container>
 
         </div>
 
