@@ -29,7 +29,6 @@ export class LoginComponent {
         this.router.navigate(['chat'], { replaceUrl: true });
       },
       error: (e) => {
-         this.router.navigateByUrl('/');
         this.loading = false;
         this.error = e?.error?.message ?? 'Login fallito';
       }
