@@ -1,59 +1,97 @@
-# ChatbotCockpit
+# Laika Customer Portal
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 19.0.5.
+Angular operator web application ("Chatbot Cockpit") for Hairesia V1: monitor WhatsApp conversations, receive real-time notifications, handle handoff, and reply as a human operator.
 
-## Development server
+Cross-repo docs: [laika-info/v1-use-cases-and-workflows.md](../laika-info/v1-use-cases-and-workflows.md) (UC-2, UC-3, UC-7).
 
-To start a local development server, run:
+## Version and stack
+
+| | |
+|---|---|
+| Framework | Angular **19** |
+| Node | **20** (CI) |
+| Key deps | Chart.js, ng2-charts, RxJS |
+
+## Repository structure
+
+```
+src/app/
+├── core/auth/           # JWT login, guards, HTTP interceptor
+├── pages/
+│   ├── login/           # Operator authentication
+│   ├── chat/            # Inbox + thread UI (real APIs)
+│   ├── cockpit/         # Dashboard shell (KPI mock data)
+│   └── chart-kpi/       # Charts (mock data)
+├── services/
+│   ├── chatService/     # Conversations API client
+│   └── websocket/       # Real-time notifications
+├── model/               # Chat, WebSocket event types
+└── app.routes.ts
+
+src/environments/        # API Gateway base URLs
+```
+
+## Routes
+
+| Path | Guard | Purpose |
+|------|-------|---------|
+| `/login` | guest | Operator login (main API JWT) |
+| `/chat` | auth | Conversation inbox and replies |
+| `/cockpit` | auth | Dashboard (mock KPIs) |
+| `/charts` | auth | Chart KPIs (mock data) |
+| `/**` | — | Redirect to `/login` |
+
+## Backend dependencies
+
+| Service | URL source | Used for |
+|---------|------------|----------|
+| Main API (`apiProxyUrl`) | `environment.ts` | Login, `POST /chat/sendHumanResponse/` |
+| Conversations API (`apiConversationsUrl`) | `environment.ts` | Inbox, messages, read status |
+| WebSocket API | hardcoded in `websocket.service.ts` | `new_message`, `handoff` events |
+
+Configure API Gateway IDs in [src/environments/environment.ts](src/environments/environment.ts). WebSocket URL should use stage **`v1`** (match [laika-infra](../laika-infra/) `websocket_url` output).
+
+Example dev values:
+
+```typescript
+export const environment = {
+  production: false,
+  apiLoginUrl: 'https://{main-api-id}.execute-api.eu-central-1.amazonaws.com/v1/',
+  apiConversationsUrl: 'https://{chat-api-id}.execute-api.eu-central-1.amazonaws.com/v1/',
+  apiProxyUrl: 'https://{main-api-id}.execute-api.eu-central-1.amazonaws.com/v1/',
+};
+```
+
+## Features
+
+| Feature | Status |
+|---------|--------|
+| JWT login | Implemented |
+| Chat inbox + messages | Implemented (Conversations API) |
+| WebSocket `new_message` | Implemented |
+| Handoff WebSocket handling | Implemented |
+| Operator human reply | Implemented |
+| Read status | Implemented |
+| Cockpit / charts KPIs | Mock data only |
+
+## Local development
 
 ```bash
+npm ci
 ng serve
 ```
 
-Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
+Open `http://localhost:4200/`. Default route redirects to login.
 
-## Code scaffolding
+## Deploy
 
-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
+GitHub Actions deploys to **GitHub Pages** on push to `main` (`.github/workflows/deploy-pages.yml`).
 
-```bash
-ng generate component component-name
-```
+Base href: `/laika-customer-portal/`
 
-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
+## Related repositories
 
-```bash
-ng generate --help
-```
-
-## Building
-
-To build the project run:
-
-```bash
-ng build
-```
-
-This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
-
-## Running unit tests
-
-To execute unit tests with the [Karma](https://karma-runner.github.io) test runner, use the following command:
-
-```bash
-ng test
-```
-
-## Running end-to-end tests
-
-For end-to-end (e2e) testing, run:
-
-```bash
-ng e2e
-```
-
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
-
-## Additional Resources
-
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
+- [laika-api-proxy-codebase](../laika-api-proxy-codebase/) — auth and human reply
+- [laika-conversations-api-codebase](../laika-conversations-api-codebase/) — inbox read API
+- [laika-notification-module-codebase](../laika-notification-module-codebase/) — WebSocket notifier
+- [laika-info](../laika-info/) — platform documentation
