@@ -315,7 +315,7 @@ closeMobileChat(): void {
             if (thread.id !== selectedId) return thread;
 
             const nextMessage: ChatMessage = {
-              id: thread.messages.length + 1,
+              id: String(thread.messages.length + 1),
               sender: 'agent',
               text,
               timestamp: this.nowTimestamp(),
@@ -524,7 +524,7 @@ closeMobileChat(): void {
           if (thread.id !== selectedId) return thread;
 
           const nextMessage: ChatMessage = {
-            id: thread.messages.length + 1,
+            id: String(thread.messages.length + 1),
             sender: 'agent',
             text: `📎 ${file.name}`,
             timestamp: this.nowTimestamp(),

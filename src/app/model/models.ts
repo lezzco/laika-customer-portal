@@ -1,4 +1,5 @@
 export interface ChatMessage {
+  message_id?: string;
   message_number?: number;
   content: string;
   role: 'user' | 'assistant';
