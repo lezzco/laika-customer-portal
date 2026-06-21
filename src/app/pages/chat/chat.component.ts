@@ -7,12 +7,12 @@ import { AuthTokenService } from '../../core/auth/auth.service';
 import { HumanResponseRequest } from '../../model/requestModel';
 import { WebsocketService } from '../../services/websocket/weksocket.service';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { ChatSocketEvent, NewMessageSocketEvent } from '../../model/websocketModel';
+import { ChatSocketEvent, HandoffSocketEvent, NewMessageSocketEvent } from '../../model/websocketModel';
 
 type Sender = 'agent' | 'customer';
 
 type ChatMessage = {
-  id: number;
+  id: string;
   sender: Sender;
   text: string;
   timestamp: string;
@@ -136,7 +136,7 @@ closeMobileChat(): void {
 }
   readonly threads = signal<ChatThread[]>([]);
 
-  readonly selectedThreadId = signal("101");
+  readonly selectedThreadId = signal('');
   draftMessage = '';
 
   readonly selectedThread = computed(
@@ -165,19 +165,41 @@ closeMobileChat(): void {
   private applySocketEvent(event: ChatSocketEvent) {
     if (event.type === 'new_message') {
       this.handleNewMessage(event);
+    } else if (event.type === 'handoff') {
+      this.handleHandoff(event);
     }
+  }
+
+  private handleHandoff(event: HandoffSocketEvent) {
+    if (event.company_id !== this.user?.company_id) return;
+
+    const chatId = event.chat_id;
+    const existing = this.threads().find(t => t.id === chatId);
+    if (existing) {
+      this.threads.update(threads =>
+        threads.map(thread =>
+          thread.id === chatId ? { ...thread, status: 'Online' as const } : thread
+        )
+      );
+      return;
+    }
+
+    this.chatService.getChatById(chatId).subscribe({
+      next: chat => this.upsertThreadFromChat(chat),
+      error: err => console.error('Chat non trovata dopo handoff:', err),
+    });
   }
 
   private handleNewMessage(event: NewMessageSocketEvent) {
     if (event.company_id !== this.user?.company_id) return;
 
-    const conversationId = event.conversation_id;
+    const chatId = event.chat_id;
     const timestamp = this.nowTimestamp();
-    const isSelected = this.selectedThreadId() === conversationId;
+    const isSelected = this.selectedThreadId() === chatId;
 
-    const existing = this.threads().find(t => t.id === conversationId);
+    const existing = this.threads().find(t => t.id === chatId);
     if (!existing) {
-      this.chatService.getChatById(conversationId).subscribe({
+      this.chatService.getChatById(chatId).subscribe({
         next: chat => this.upsertThreadFromChat(chat),
         error: err => console.error('Chat non trovata dopo new_message:', err),
       });
@@ -187,9 +209,13 @@ closeMobileChat(): void {
     const alreadyPresent = existing.messages.some(m => m.id === event.message_id);
     if (alreadyPresent) return;
 
+    const role = event.message_role ?? 'user';
+    const sender: Sender =
+      role === 'user' ? 'customer' : 'agent';
+
     const incoming: ChatMessage = {
       id: event.message_id,
-      sender: 'customer',
+      sender,
       text: event.message_content,
       timestamp,
       read: isSelected,
@@ -198,7 +224,7 @@ closeMobileChat(): void {
     this.threads.update(threads =>
       this.sortThreadsByLastMessage(
         threads.map(thread => {
-          if (thread.id !== conversationId) return thread;
+          if (thread.id !== chatId) return thread;
 
           return {
             ...thread,
@@ -210,7 +236,7 @@ closeMobileChat(): void {
     );
 
     if (isSelected) {
-      this.syncReadStatus(conversationId);
+      this.syncReadStatus(chatId);
     }
   }
 
@@ -236,7 +262,7 @@ closeMobileChat(): void {
       status: chat.handoff ? 'Online' : chat.is_active ? 'Nuovo' : 'In attesa',
       lastMessageAt: lastMsg?.timestamp ?? '',
       messages: messages.map((msg, msgIndex) => ({
-        id: msg.message_number ?? msgIndex + 1,
+        id: msg.message_id ?? String(msg.message_number ?? msgIndex + 1),
         sender: (msg.role == 'user' ? 'customer' : 'agent') as Sender,
         text: msg.content,
         timestamp: msg.timestamp,
@@ -289,7 +315,7 @@ closeMobileChat(): void {
             if (thread.id !== selectedId) return thread;
 
             const nextMessage: ChatMessage = {
-              id: thread.messages.length + 1,
+              id: String(thread.messages.length + 1),
               sender: 'agent',
               text,
               timestamp: this.nowTimestamp(),
@@ -498,7 +524,7 @@ closeMobileChat(): void {
           if (thread.id !== selectedId) return thread;
 
           const nextMessage: ChatMessage = {
-            id: thread.messages.length + 1,
+            id: String(thread.messages.length + 1),
             sender: 'agent',
             text: `📎 ${file.name}`,
             timestamp: this.nowTimestamp(),
