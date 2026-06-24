@@ -18,6 +18,7 @@ export type HandoffSocketEvent = {
 export type ChatSocketEvent =
   | NewMessageSocketEvent
   | HandoffSocketEvent
+  | { type: 'connect_ack'; connection_id: string }
   | { type: 'thread.snapshot'; payload: ChatThread[] }
   | { type: 'thread.message'; payload: { threadId: number; message: ChatMessage } }
   | { type: 'thread.read'; payload: { threadId: number } }

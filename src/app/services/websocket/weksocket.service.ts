@@ -29,18 +29,16 @@ export class WebsocketService {
     
 
     this.socket.onopen = () => {
-      if (this.socket) {
-        this.socket.send(JSON.stringify({ type: 'token', token }));
-    
-  }
-
-    console.log("✅ WebSocket connesso");
-  };
+      this.socket?.send(JSON.stringify({ action: 'register' }));
+      console.log("✅ WebSocket connesso");
+    };
     this.socket.onmessage = event => {
       console.log("📩 Messaggio ricevuto:", event.data);
       this.zone.run(() => {
         const parsed = this.parseEvent(event.data);
-        if (parsed) this.eventsSubject.next(parsed);
+        if (!parsed) return;
+        if (parsed.type === 'connect_ack') return;
+        this.eventsSubject.next(parsed);
       });
     };
 
