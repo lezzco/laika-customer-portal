@@ -28,14 +28,12 @@ export class WebsocketService {
     this.socket = new WebSocket(url.toString());
     
 
-    this.socket.onopen = () => {
-      if (this.socket) {
-        this.socket.send(JSON.stringify({ type: 'token', token }));
-    
-  }
+   this.socket.onopen = () => {
+      this.socket?.send(JSON.stringify({ action: 'register' }));
+      console.log('WebSocket connected');
+      
+    };
 
-    console.log("✅ WebSocket connesso");
-  };
     this.socket.onmessage = event => {
       console.log("📩 Messaggio ricevuto:", event.data);
       this.zone.run(() => {
