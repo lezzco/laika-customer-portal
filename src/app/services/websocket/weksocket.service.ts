@@ -1,7 +1,7 @@
 import { inject, Injectable, NgZone } from '@angular/core';
 import { Observable, Subject } from 'rxjs';
 import { AuthTokenService } from '../../core/auth/auth.service';
-import { ChatSocketEvent } from '../../model/websocketModel';
+import { ChatSocketEvent, ConnectAckSocketEvent } from '../../model/websocketModel';
 
 
 @Injectable({ providedIn: 'root' })
@@ -29,18 +29,16 @@ export class WebsocketService {
     
 
     this.socket.onopen = () => {
-      if (this.socket) {
-        this.socket.send(JSON.stringify({ type: 'token', token }));
-    
-  }
-
-    console.log("✅ WebSocket connesso");
-  };
+      this.socket?.send(JSON.stringify({ action: 'register' }));
+      console.log("✅ WebSocket connesso");
+    };
     this.socket.onmessage = event => {
       console.log("📩 Messaggio ricevuto:", event.data);
       this.zone.run(() => {
         const parsed = this.parseEvent(event.data);
-        if (parsed) this.eventsSubject.next(parsed);
+        if (!parsed) return;
+        if (parsed.type === 'connect_ack') return;
+        this.eventsSubject.next(parsed);
       });
     };
 
@@ -70,12 +68,12 @@ export class WebsocketService {
     return url.toString();
   }
 
-  private parseEvent(raw: unknown): ChatSocketEvent | null {
+  private parseEvent(raw: unknown): ChatSocketEvent | ConnectAckSocketEvent | null {
     if (typeof raw !== 'string') return null;
 
     try {
       console.log("📩 Messaggio ricevuto:", raw);
-      return JSON.parse(raw) as ChatSocketEvent;
+      return JSON.parse(raw) as ChatSocketEvent | ConnectAckSocketEvent;
     } catch {
       return null;
     }
