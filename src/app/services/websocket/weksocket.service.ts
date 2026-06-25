@@ -1,7 +1,7 @@
 import { inject, Injectable, NgZone } from '@angular/core';
 import { Observable, Subject } from 'rxjs';
 import { AuthTokenService } from '../../core/auth/auth.service';
-import { ChatSocketEvent } from '../../model/websocketModel';
+import { ChatSocketEvent, ConnectAckSocketEvent } from '../../model/websocketModel';
 
 
 @Injectable({ providedIn: 'root' })
@@ -67,12 +67,12 @@ export class WebsocketService {
     return url.toString();
   }
 
-  private parseEvent(raw: unknown): ChatSocketEvent | null {
+  private parseEvent(raw: unknown): ChatSocketEvent | ConnectAckSocketEvent | null {
     if (typeof raw !== 'string') return null;
 
     try {
       console.log("📩 Messaggio ricevuto:", raw);
-      return JSON.parse(raw) as ChatSocketEvent;
+      return JSON.parse(raw) as ChatSocketEvent | ConnectAckSocketEvent;
     } catch {
       return null;
     }

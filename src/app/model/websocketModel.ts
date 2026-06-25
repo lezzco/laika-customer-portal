@@ -15,6 +15,11 @@ export type HandoffSocketEvent = {
   triggered_by?: string;
 };
 
+export type ConnectAckSocketEvent = {
+  type: 'connect_ack';
+  connection_id: string;
+};
+
 export type ChatSocketEvent =
   | NewMessageSocketEvent
   | HandoffSocketEvent
