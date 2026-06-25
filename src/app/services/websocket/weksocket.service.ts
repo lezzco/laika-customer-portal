@@ -29,6 +29,7 @@ export class WebsocketService {
     
 
     this.socket.onopen = () => {
+      this.socket?.send(JSON.stringify({ action: 'register' }));
       console.log("✅ WebSocket connesso");
     };
     this.socket.onmessage = event => {
