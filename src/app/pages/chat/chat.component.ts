@@ -45,6 +45,7 @@ export class ChatComponent implements OnInit {
   @ViewChild('messageList') private messageListRef?: ElementRef<HTMLDivElement>;
 
   mobileChatOpen = false;
+  readonly isMobileLayout = signal(this.matchesMobileLayout());
 // ── Emoji picker ──
   private readonly destroyRef = inject(DestroyRef);
 
@@ -126,7 +127,7 @@ closeEmojiPicker(event: MouseEvent) {
   this.emojiPickerOpen = false;
 }
 isMobile(): boolean {
-  return window.innerWidth <= 960;
+  return this.isMobileLayout();
 }
 
 openThread(threadId: string): void {
@@ -169,6 +170,10 @@ closeMobileChat(): void {
   selectChannelTab(channel: ChatChannel): void {
     this.activeChannelTab.set(channel);
 
+    if (this.isMobileLayout()) {
+      this.mobileChatOpen = false;
+    }
+
     const visible = this.filteredThreads();
     const current = this.selectedThread();
 
@@ -186,7 +191,31 @@ closeMobileChat(): void {
   constructor(private chatService: ChatService , private authservice : AuthTokenService) {
     this.destroyRef.onDestroy(() => this.chatSocket.disconnect());
     this.subscribeToSocket();
+    this.bindMobileLayoutListener();
+  }
 
+  @HostListener('window:resize')
+  onWindowResize(): void {
+    this.isMobileLayout.set(this.matchesMobileLayout());
+  }
+
+  private bindMobileLayoutListener(): void {
+    const mediaQuery = window.matchMedia('(max-width: 960px)');
+    const syncLayout = () => {
+      const mobile = mediaQuery.matches;
+      this.isMobileLayout.set(mobile);
+      if (!mobile) {
+        this.mobileChatOpen = false;
+      }
+    };
+
+    syncLayout();
+    mediaQuery.addEventListener('change', syncLayout);
+    this.destroyRef.onDestroy(() => mediaQuery.removeEventListener('change', syncLayout));
+  }
+
+  private matchesMobileLayout(): boolean {
+    return window.matchMedia('(max-width: 960px)').matches;
   }
 
   private subscribeToSocket() {

@@ -1,8 +1,8 @@
 <section class="chat-page">
-  <div class="chat-shell" [class.mobile-chat-open]="isMobile() && mobileChatOpen">
+  <div class="chat-shell" [class.mobile-chat-open]="isMobileLayout() && mobileChatOpen">
 
     <!-- ── SIDEBAR / LISTA THREAD ── -->
-    <aside class="threads-panel" [class.hidden]="isMobile() && mobileChatOpen">
+    <aside class="threads-panel" [class.hidden]="isMobileLayout() && mobileChatOpen">
 
       <header class="threads-header">
         <div class="threads-header-left">
@@ -97,15 +97,15 @@
     </aside>
 
     <!-- ── CONVERSAZIONE ── -->
-    <main class="conversation-panel" [class.visible]="!isMobile() || mobileChatOpen">
+    <main class="conversation-panel" [class.visible]="!isMobileLayout() || mobileChatOpen">
 
-      <ng-container *ngIf="selectedThread() as thread">
+      <ng-container *ngIf="(!isMobileLayout() || mobileChatOpen) && selectedThread() as thread">
 
         <header class="conversation-header">
           <button
             type="button"
             class="back-button"
-            *ngIf="isMobile()"
+            *ngIf="isMobileLayout()"
             (click)="closeMobileChat()">
             ←
           </button>

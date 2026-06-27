@@ -767,6 +767,11 @@
     transform: translateX(0);
   }
 
+  .conversation-panel:not(.visible) {
+    visibility: hidden;
+    pointer-events: none;
+  }
+
   .back-button { display: flex; }
 
   .messages { padding: 12px 3% 12px; }
