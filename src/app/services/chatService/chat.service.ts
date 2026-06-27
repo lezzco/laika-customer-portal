@@ -4,8 +4,8 @@ import { BASE_SENDMESSAGE_URL, BASE_URL } from '../../app.config';
 import { Chat } from '../../model/models';
 import { catchError, map, Observable, of } from 'rxjs';
 import { AuthTokenService } from '../../core/auth/auth.service';
-import { HumanResponseRequest, SendMessageRequest, UpdateReadStatusRequest } from '../../model/requestModel';
-import { ResponseMessage, SendMessageResponse } from '../../model/responseModel';
+import { HandoffRequest, HumanResponseRequest, SendMessageRequest, UpdateReadStatusRequest } from '../../model/requestModel';
+import { HandoffResponse, ResponseMessage, SendMessageResponse } from '../../model/responseModel';
 
 
 @Injectable({ providedIn: 'root' })
@@ -69,5 +69,11 @@ return this. http.get<{ items: Chat[]; next_cursor: string | null }>(
 
   getChatById(chat_id: string): Observable<Chat> {
   return this.http.get<Chat>(`${this.baseUrl}chats/${chat_id}`);
+  }
+
+  /** TODO: allineare il path quando l'endpoint backend sarà disponibile. */
+  requestHandoff(chatId: string): Observable<HandoffResponse> {
+    const body: HandoffRequest = { chat_id: chatId };
+    return this.http.post<HandoffResponse>(`${this.baseUrl}chats/${chatId}/handoff`, body);
   }
 }

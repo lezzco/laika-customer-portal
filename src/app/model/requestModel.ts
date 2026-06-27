@@ -22,3 +22,7 @@ export class HumanResponseRequest {
         this.human_message = human_message;
     }
 }
+
+export interface HandoffRequest {
+    chat_id: string;
+}

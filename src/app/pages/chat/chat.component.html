@@ -12,6 +12,23 @@
         <div class="total-badge" *ngIf="totalUnread() > 0">{{ totalUnread() }}</div>
       </header>
 
+      <div class="channel-tabs" role="tablist" aria-label="Canali">
+        <button
+          type="button"
+          *ngFor="let tab of channelTabs"
+          class="channel-tab"
+          role="tab"
+          [class.channel-tab-active]="activeChannelTab() === tab.id"
+          [attr.aria-selected]="activeChannelTab() === tab.id"
+          (click)="selectChannelTab(tab.id)">
+          <span class="channel-tab-icon">{{ tab.icon }}</span>
+          <span class="channel-tab-label">{{ tab.label }}</span>
+          <span class="channel-tab-badge" *ngIf="channelUnreadCount(tab.id) > 0">
+            {{ channelUnreadCount(tab.id) }}
+          </span>
+        </button>
+      </div>
+
       <div class="search-bar">
         <div class="search-wrap">
           <span class="search-icon">🔍</span>
@@ -24,37 +41,56 @@
       </div>
 
       <div class="threads-list">
-        <button
-          type="button"
+        <div
           class="thread-card"
           *ngFor="let thread of filteredThreads()"
-          [class.thread-card-active]="thread.id === (selectedThread()?.id ?? -1)"
-          (click)="openThread(thread.id)">
+          [class.thread-card-active]="thread.id === (selectedThread()?.id ?? -1)">
 
-          <div class="thread-avatar">{{ thread.customer.charAt(0) }}</div>
+          <button
+            type="button"
+            class="thread-card-open"
+            (click)="openThread(thread.id)">
 
-          <div class="thread-main">
-            <div class="thread-top">
-              <strong>{{ thread.customer }}</strong>
-              <span class="thread-time" [class.thread-time-unread]="unreadCount(thread) > 0">
-                {{ formatThreadListTime(thread.lastMessageAt) }}
-              </span>
-            </div>
-            <div class="thread-bottom">
-              <p class="thread-preview" [class.thread-preview-unread]="unreadCount(thread) > 0">
-                {{ lastMessage(thread) }}
-              </p>
-              <div class="thread-unread" *ngIf="unreadCount(thread) > 0">
-                {{ unreadCount(thread) }}
+            <div class="thread-avatar">{{ thread.customer.charAt(0) }}</div>
+
+            <div class="thread-main">
+              <div class="thread-top">
+                <strong>{{ thread.customer }}</strong>
+                <span class="thread-time" [class.thread-time-unread]="unreadCount(thread) > 0">
+                  {{ formatThreadListTime(thread.lastMessageAt) }}
+                </span>
+              </div>
+              <div class="thread-bottom">
+                <p class="thread-preview" [class.thread-preview-unread]="unreadCount(thread) > 0">
+                  {{ lastMessage(thread) }}
+                </p>
+                <div class="thread-unread" *ngIf="unreadCount(thread) > 0">
+                  {{ unreadCount(thread) }}
+                </div>
               </div>
             </div>
-          </div>
+          </button>
 
-        </button>
+          <button
+            type="button"
+            class="thread-handoff-btn"
+            *ngIf="!isHandoffActive(thread)"
+            [disabled]="isHandoffLoading(thread.id)"
+            [attr.aria-label]="'Handoff conversazione ' + thread.customer"
+            (click)="requestThreadHandoff(thread, $event)">
+            {{ isHandoffLoading(thread.id) ? '...' : 'Handoff' }}
+          </button>
+
+          <span class="thread-handoff-badge" *ngIf="isHandoffActive(thread)">Operatore</span>
+        </div>
 
         <!-- Messaggio se nessun risultato -->
         <div *ngIf="filteredThreads().length === 0 && searchQuery()" class="no-results">
           <p>Nessuna conversazione trovata per "{{ searchQuery() }}"</p>
+        </div>
+
+        <div *ngIf="filteredThreads().length === 0 && !searchQuery()" class="no-results">
+          <p>Nessuna conversazione su {{ activeChannelTab() }}</p>
         </div>
       </div>
 

@@ -9,6 +9,8 @@ import { WebsocketService } from '../../services/websocket/weksocket.service';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ChatSocketEvent, HandoffSocketEvent, NewMessageSocketEvent } from '../../model/websocketModel';
 
+type ChatChannel = 'WhatsApp' | 'Web Chat';
+
 type Sender = 'agent' | 'customer';
 
 type ChatMessage = {
@@ -26,7 +28,7 @@ type MessageTimelineItem =
 type ChatThread = {
   id: string;
   customer: string;
-  channel: 'WhatsApp' | 'Instagram' | 'Web Chat' | 'Messenger';
+  channel: ChatChannel;
   status: 'Online' | 'In attesa' | 'Nuovo';
   lastMessageAt: string;
   messages: ChatMessage[];
@@ -64,11 +66,25 @@ readonly emojiCategories = [
 
 searchQuery = signal('');
 
-  readonly filteredThreads = computed(() => {
-    const query = this.searchQuery().toLowerCase();
-    if (!query) return this.threads();
+readonly channelTabs: { id: ChatChannel; label: string; icon: string }[] = [
+  { id: 'WhatsApp', label: 'WhatsApp', icon: '📱' },
+  { id: 'Web Chat', label: 'Web Chat', icon: '💬' },
+];
 
-    return this.threads()
+activeChannelTab = signal<ChatChannel>('WhatsApp');
+handoffLoadingId = signal<string | null>(null);
+
+  readonly filteredThreads = computed(() => {
+    const query = this.searchQuery().toLowerCase().trim();
+    const channel = this.activeChannelTab();
+
+    let list = this.threads().filter(thread => thread.channel === channel);
+
+    if (!query) {
+      return this.sortThreadsByLastMessage(list);
+    }
+
+    return list
       .filter(thread => {
         const nameMatch = thread.customer.toLowerCase().includes(query);
         const messageMatch = thread.messages.some(msg =>
@@ -139,13 +155,33 @@ closeMobileChat(): void {
   readonly selectedThreadId = signal('');
   draftMessage = '';
 
-  readonly selectedThread = computed(
-    () => this.threads().find(thread => thread.id === this.selectedThreadId()) ?? this.threads()[0]
-  );
+  readonly selectedThread = computed(() => {
+    const visible = this.filteredThreads();
+    const selected = this.threads().find(thread => thread.id === this.selectedThreadId());
+    if (selected?.channel === this.activeChannelTab()) return selected;
+    return visible[0];
+  });
 
   readonly totalUnread = computed(() =>
-    this.threads().reduce((total, thread) => total + this.unreadCount(thread), 0)
+    this.channelUnreadCount(this.activeChannelTab())
   );
+
+  selectChannelTab(channel: ChatChannel): void {
+    this.activeChannelTab.set(channel);
+
+    const visible = this.filteredThreads();
+    const current = this.selectedThread();
+
+    if (!current || current.channel !== channel) {
+      this.selectedThreadId.set(visible[0]?.id ?? '');
+    }
+  }
+
+  channelUnreadCount(channel: ChatChannel): number {
+    return this.threads()
+      .filter(thread => thread.channel === channel)
+      .reduce((total, thread) => total + this.unreadCount(thread), 0);
+  }
 
   constructor(private chatService: ChatService , private authservice : AuthTokenService) {
     this.destroyRef.onDestroy(() => this.chatSocket.disconnect());
@@ -258,7 +294,7 @@ closeMobileChat(): void {
     return {
       id: chat.chat_id,
       customer: chat.company_id,
-      channel: 'Web Chat',
+      channel: this.resolveChannel(chat),
       status: chat.handoff ? 'Online' : chat.is_active ? 'Nuovo' : 'In attesa',
       lastMessageAt: lastMsg?.timestamp ?? '',
       messages: messages.map((msg, msgIndex) => ({
@@ -277,7 +313,11 @@ closeMobileChat(): void {
     const mapped: ChatThread[] = chats.map((chat: Chat) => this.mapChatToThread(chat));
 
     this.threads.set(this.sortThreadsByLastMessage(mapped));
-    if (mapped.length > 0) this.selectedThreadId.set(mapped[0].id);
+    if (mapped.length > 0) {
+      const firstInTab = mapped.find(t => t.channel === this.activeChannelTab()) ?? mapped[0];
+      this.selectedThreadId.set(firstInTab.id);
+      this.activeChannelTab.set(firstInTab.channel);
+    }
   },
   error: (err) => {
     console.error('Failed to load chats:', err);
@@ -292,6 +332,36 @@ closeMobileChat(): void {
 
   lastMessage(thread: ChatThread) {
     return thread.messages[thread.messages.length - 1]?.text ?? '';
+  }
+
+  isHandoffActive(thread: ChatThread): boolean {
+    return thread.status === 'Online';
+  }
+
+  isHandoffLoading(threadId: string): boolean {
+    return this.handoffLoadingId() === threadId;
+  }
+
+  requestThreadHandoff(thread: ChatThread, event: MouseEvent): void {
+    event.stopPropagation();
+
+    if (this.isHandoffActive(thread) || this.isHandoffLoading(thread.id)) return;
+
+    this.handoffLoadingId.set(thread.id);
+    this.chatService.requestHandoff(thread.id).subscribe({
+      next: () => {
+        this.threads.update(threads =>
+          threads.map(t =>
+            t.id === thread.id ? { ...t, status: 'Online' as const } : t
+          )
+        );
+        this.handoffLoadingId.set(null);
+      },
+      error: err => {
+        console.error('Errore handoff:', err);
+        this.handoffLoadingId.set(null);
+      },
+    });
   }
 
   sendMessage() {
@@ -479,6 +549,13 @@ closeMobileChat(): void {
       if (!el) return;
       el.scrollTop = el.scrollHeight;
     });
+  }
+
+  private resolveChannel(chat: Chat): ChatChannel {
+    const raw = chat.channel?.toLowerCase() ?? '';
+    if (raw.includes('whatsapp') || raw.includes('wa')) return 'WhatsApp';
+    if (raw.includes('web') || raw.includes('chat')) return 'Web Chat';
+    return chat.handoff ? 'WhatsApp' : 'Web Chat';
   }
 
   private sortThreadsByLastMessage(threads: ChatThread[]): ChatThread[] {

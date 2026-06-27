@@ -13,6 +13,7 @@ export interface Chat {
   company_id: string;
   handoff: boolean;
   is_active: boolean;
+  channel?: string;
   messages: ChatMessage[];
 }
 
