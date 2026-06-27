@@ -734,9 +734,13 @@
 }
 
 /* ══════════════════════════════
-   MOBILE
+   MOBILE (allineato a isMobile() → 960px)
 ══════════════════════════════ */
-@media (max-width: 760px) {
+@media (max-width: 960px) {
+  .chat-shell {
+    position: relative;
+  }
+
   .threads-panel {
     width: 100%;
     min-width: unset;
@@ -768,4 +772,21 @@
   .messages { padding: 12px 3% 12px; }
 
   .message { max-width: 82%; }
+
+  .thread-handoff-btn {
+    min-width: 58px;
+    height: 28px;
+    padding: 0 8px;
+    margin-right: 8px;
+    font-size: 0.68rem;
+  }
+
+  .thread-handoff-badge {
+    margin-right: 8px;
+    font-size: 0.62rem;
+  }
+
+  .thread-top strong {
+    max-width: 120px;
+  }
 }

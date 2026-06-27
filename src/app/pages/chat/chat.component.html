@@ -1,5 +1,5 @@
 <section class="chat-page">
-  <div class="chat-shell">
+  <div class="chat-shell" [class.mobile-chat-open]="isMobile() && mobileChatOpen">
 
     <!-- ── SIDEBAR / LISTA THREAD ── -->
     <aside class="threads-panel" [class.hidden]="isMobile() && mobileChatOpen">
