@@ -1,5 +1,7 @@
 # Laika Customer Portal
 
+> **AI / agent context:** [docs/KNOWLEDGE_BASE.md](docs/KNOWLEDGE_BASE.md)
+
 Angular operator web application ("Chatbot Cockpit") for Hairesia V1: monitor WhatsApp conversations, receive real-time notifications, handle handoff, and reply as a human operator.
 
 Cross-repo docs: [laika-info/v1-use-cases-and-workflows.md](../laika-info/v1-use-cases-and-workflows.md) (UC-2, UC-3, UC-7).
